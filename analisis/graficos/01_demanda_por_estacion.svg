@@ -1,0 +1,48 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="700" viewBox="0 0 1200 700">
+<rect width="100%" height="100%" fill="#fbfaf7"/>
+<style>text{font-family:Arial,sans-serif;fill:#263238} .grid{stroke:#d9dedc;stroke-width:1} .axis{stroke:#52615d;stroke-width:1.3} .title{font-size:27px;font-weight:700} .subtitle{font-size:15px;fill:#61706b} .label{font-size:13px} .small{font-size:12px;fill:#61706b}</style>
+<text x="70" y="48" class="title">Demanda media por estación</text>
+<text x="70" y="75" class="subtitle">Media de demanda en 45 días; las estaciones no operan en la misma escala</text>
+<line x1="330.0" y1="115" x2="330.0" y2="615" class="grid"/><text x="330.0" y="640" text-anchor="middle" class="small">0</text>
+<line x1="488.0" y1="115" x2="488.0" y2="615" class="grid"/><text x="488.0" y="640" text-anchor="middle" class="small">153</text>
+<line x1="646.0" y1="115" x2="646.0" y2="615" class="grid"/><text x="646.0" y="640" text-anchor="middle" class="small">306</text>
+<line x1="804.0" y1="115" x2="804.0" y2="615" class="grid"/><text x="804.0" y="640" text-anchor="middle" class="small">459</text>
+<line x1="962.0" y1="115" x2="962.0" y2="615" class="grid"/><text x="962.0" y="640" text-anchor="middle" class="small">613</text>
+<line x1="1120.0" y1="115" x2="1120.0" y2="615" class="grid"/><text x="1120.0" y="640" text-anchor="middle" class="small">766</text>
+<text x="318" y="141.5" text-anchor="end" class="label">Ricaurte - NQS (07111)</text>
+<rect x="330" y="120.0" width="705.4" height="31.7" rx="3" fill="#d95d39"/>
+<text x="1043.4" y="141.5" class="label">683.7</text>
+<text x="318" y="183.2" text-anchor="end" class="label">Banderas (05100)</text>
+<rect x="330" y="161.7" width="609.8" height="31.7" rx="3" fill="#d95d39"/>
+<text x="947.8" y="183.2" class="label">591.1</text>
+<text x="318" y="224.9" text-anchor="end" class="label">Portal El Dorado – C.C. NUESTRO BOGOTÁ (06000)</text>
+<rect x="330" y="203.3" width="527.1" height="31.7" rx="3" fill="#d95d39"/>
+<text x="865.1" y="224.9" class="label">510.9</text>
+<text x="318" y="266.5" text-anchor="end" class="label">Portal Américas (05000)</text>
+<rect x="330" y="245.0" width="352.9" height="31.7" rx="3" fill="#d95d39"/>
+<text x="690.9" y="266.5" class="label">342.1</text>
+<text x="318" y="308.2" text-anchor="end" class="label">Museo Nacional (10009)</text>
+<rect x="330" y="286.7" width="348.6" height="31.7" rx="3" fill="#d95d39"/>
+<text x="686.6" y="308.2" class="label">337.9</text>
+<text x="318" y="349.9" text-anchor="end" class="label">Calle 100 - Marketmedios (02300)</text>
+<rect x="330" y="328.3" width="303.3" height="31.7" rx="3" fill="#d95d39"/>
+<text x="641.3" y="349.9" class="label">294.0</text>
+<text x="318" y="391.5" text-anchor="end" class="label">Universidad Nacional (07107)</text>
+<rect x="330" y="370.0" width="289.9" height="31.7" rx="3" fill="#d95d39"/>
+<text x="627.9" y="391.5" class="label">281.0</text>
+<text x="318" y="433.2" text-anchor="end" class="label">Movistar Arena (07105)</text>
+<rect x="330" y="411.7" width="281.2" height="31.7" rx="3" fill="#d95d39"/>
+<text x="619.2" y="433.2" class="label">272.6</text>
+<text x="318" y="474.9" text-anchor="end" class="label">Portal Suba (03000)</text>
+<rect x="330" y="453.3" width="266.6" height="31.7" rx="3" fill="#d95d39"/>
+<text x="604.6" y="474.9" class="label">258.4</text>
+<text x="318" y="516.5" text-anchor="end" class="label">Calle 72 (09122)</text>
+<rect x="330" y="495.0" width="257.7" height="31.7" rx="3" fill="#d95d39"/>
+<text x="595.7" y="516.5" class="label">249.8</text>
+<text x="318" y="558.2" text-anchor="end" class="label">Universidades – CityU (06111)</text>
+<rect x="330" y="536.7" width="246.5" height="31.7" rx="3" fill="#d95d39"/>
+<text x="584.5" y="558.2" class="label">238.9</text>
+<text x="318" y="599.9" text-anchor="end" class="label">Portal Usme (09000)</text>
+<rect x="330" y="578.3" width="224.8" height="31.7" rx="3" fill="#d95d39"/>
+<text x="562.8" y="599.9" class="label">217.9</text>
+</svg>

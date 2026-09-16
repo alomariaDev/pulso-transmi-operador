@@ -1,0 +1,181 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1500" height="1040" viewBox="0 0 1500 1040">
+  <rect width="100%" height="100%" fill="#fbfaf7"/>
+  <style>
+    text{font-family:Arial,sans-serif;fill:#263238}
+    .title{font-size:29px;font-weight:700}
+    .subtitle{font-size:15px;fill:#61706b}
+    .section{font-size:13px;font-weight:700;letter-spacing:1px;fill:#61706b}
+    .entity{fill:#fff;stroke:#52615d;stroke-width:1.5;rx:6}
+    .source{fill:#edf5f3;stroke:#147d92;stroke-width:2}
+    .feature{fill:#fff4e8;stroke:#d95d39;stroke-width:2}
+    .ml{fill:#f0edf5;stroke:#6d597a;stroke-width:2}
+    .monitor{fill:#eef3e7;stroke:#627c4d;stroke-width:2}
+    .head-source{fill:#147d92}.head-feature{fill:#d95d39}.head-ml{fill:#6d597a}.head-monitor{fill:#627c4d}
+    .head{font-size:15px;font-weight:700;fill:#fff}
+    .field{font-size:12px}.key{font-size:12px;font-weight:700}.muted{font-size:11px;fill:#61706b}
+    .rel{stroke:#52615d;stroke-width:1.5;fill:none}.dashed{stroke-dasharray:6 5}
+    .card{fill:#fff;stroke:#d9dedc;stroke-width:1.2;rx:6}
+    .note{font-size:13px;fill:#263238}.small{font-size:11px;fill:#61706b}
+  </style>
+  <defs>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto"><path d="M0,0 L10,3 L0,6 z" fill="#52615d"/></marker>
+  </defs>
+
+  <text x="60" y="48" class="title">Modelo entidad-relación orientado a Machine Learning</text>
+  <text x="60" y="76" class="subtitle">Diseño recomendado para convertir el dataset de Pulso TransMi en un pipeline reproducible de entrenamiento, predicción y monitoreo</text>
+
+  <text x="60" y="116" class="section">DATOS FUENTE DEL API</text>
+  <text x="510" y="116" class="section">CAPA DE FEATURES</text>
+  <text x="940" y="116" class="section">ENTRENAMIENTO Y PREDICCIÓN</text>
+  <text x="1260" y="116" class="section">CALIDAD</text>
+
+  <!-- source entities -->
+  <g transform="translate(60 145)">
+    <rect width="270" height="175" class="entity source"/>
+    <rect width="270" height="34" class="head-source"/>
+    <text x="14" y="23" class="head">STATION</text>
+    <text x="14" y="57" class="key">PK station_id : string</text>
+    <text x="14" y="78" class="field">station_name : string</text>
+    <text x="14" y="97" class="field">corridor : string</text>
+    <text x="14" y="116" class="field">latitude : decimal</text>
+    <text x="14" y="135" class="field">longitude : decimal</text>
+    <text x="14" y="158" class="muted">Catálogo geográfico estable</text>
+  </g>
+  <g transform="translate(60 390)">
+    <rect width="300" height="205" class="entity source"/>
+    <rect width="300" height="34" class="head-source"/>
+    <text x="14" y="23" class="head">OBSERVATION</text>
+    <text x="14" y="57" class="key">PK observed_at : timestamp</text>
+    <text x="14" y="78" class="key">PK, FK station_id : string</text>
+    <text x="14" y="101" class="field">demand : integer</text>
+    <text x="14" y="126" class="muted">Etiqueta objetivo (y)</text>
+    <text x="14" y="148" class="muted">Granularidad: 15 minutos</text>
+    <text x="14" y="170" class="muted">Índice: station_id, observed_at</text>
+  </g>
+  <g transform="translate(60 670)">
+    <rect width="300" height="190" class="entity source"/>
+    <rect width="300" height="34" class="head-source"/>
+    <text x="14" y="23" class="head">CONTEXT</text>
+    <text x="14" y="57" class="key">PK observed_at : timestamp</text>
+    <text x="14" y="82" class="field">rain_mm : decimal</text>
+    <text x="14" y="103" class="field">rain_forecast : decimal</text>
+    <text x="14" y="124" class="field">temperature_c : decimal</text>
+    <text x="14" y="145" class="field">event_intensity : decimal</text>
+    <text x="14" y="168" class="muted">Una fila común a las estaciones</text>
+  </g>
+
+  <!-- feature layer -->
+  <g transform="translate(510 220)">
+    <rect width="330" height="255" class="entity feature"/>
+    <rect width="330" height="34" class="head-feature"/>
+    <text x="14" y="23" class="head">FEATURE_SNAPSHOT</text>
+    <text x="14" y="57" class="key">PK feature_at : timestamp</text>
+    <text x="14" y="78" class="key">PK, FK station_id : string</text>
+    <text x="14" y="104" class="field">lag_15m, lag_1h, lag_1d</text>
+    <text x="14" y="125" class="field">rolling_mean_1h, rolling_std_1d</text>
+    <text x="14" y="146" class="field">hour, weekday, is_weekend</text>
+    <text x="14" y="167" class="field">rain_mm, temperature_c</text>
+    <text x="14" y="188" class="field">feature_version : string</text>
+    <text x="14" y="218" class="muted">Solo usa información disponible</text>
+    <text x="14" y="236" class="muted">antes de feature_at: evita leakage</text>
+  </g>
+  <g transform="translate(510 550)">
+    <rect width="330" height="190" class="entity feature"/>
+    <rect width="330" height="34" class="head-feature"/>
+    <text x="14" y="23" class="head">DATA_CUTOFF</text>
+    <text x="14" y="57" class="key">PK cutoff_id : string</text>
+    <text x="14" y="80" class="field">cutoff_at : timestamp</text>
+    <text x="14" y="101" class="field">train_start, validation_start</text>
+    <text x="14" y="122" class="field">validation_end : timestamp</text>
+    <text x="14" y="145" class="field">split_strategy : string</text>
+    <text x="14" y="169" class="muted">Congela el corte temporal usado</text>
+  </g>
+
+  <!-- ML entities -->
+  <g transform="translate(940 145)">
+    <rect width="270" height="190" class="entity ml"/>
+    <rect width="270" height="34" class="head-ml"/>
+    <text x="14" y="23" class="head">MODEL_VERSION</text>
+    <text x="14" y="57" class="key">PK model_id : string</text>
+    <text x="14" y="80" class="field">algorithm : string</text>
+    <text x="14" y="101" class="field">feature_version : string</text>
+    <text x="14" y="122" class="field">code_commit : string</text>
+    <text x="14" y="143" class="field">created_at : timestamp</text>
+    <text x="14" y="168" class="muted">Artefacto versionado</text>
+  </g>
+  <g transform="translate(940 410)">
+    <rect width="270" height="205" class="entity ml"/>
+    <rect width="270" height="34" class="head-ml"/>
+    <text x="14" y="23" class="head">TRAINING_RUN</text>
+    <text x="14" y="57" class="key">PK run_id : string</text>
+    <text x="14" y="79" class="key">FK model_id, cutoff_id</text>
+    <text x="14" y="102" class="field">started_at, finished_at</text>
+    <text x="14" y="123" class="field">train_rows, validation_rows</text>
+    <text x="14" y="144" class="field">wape, accuracy</text>
+    <text x="14" y="171" class="muted">Reproduce y comparar runs</text>
+  </g>
+  <g transform="translate(940 700)">
+    <rect width="270" height="190" class="entity ml"/>
+    <rect width="270" height="34" class="head-ml"/>
+    <text x="14" y="23" class="head">PREDICTION</text>
+    <text x="14" y="57" class="key">PK prediction_id : string</text>
+    <text x="14" y="78" class="key">FK run_id, station_id</text>
+    <text x="14" y="101" class="field">target_at : timestamp</text>
+    <text x="14" y="122" class="field">y_pred : decimal</text>
+    <text x="14" y="143" class="field">lower, upper : decimal</text>
+    <text x="14" y="167" class="muted">Predicción auditable</text>
+  </g>
+
+  <!-- quality entities -->
+  <g transform="translate(1260 230)">
+    <rect width="190" height="190" class="entity monitor"/>
+    <rect width="190" height="34" class="head-monitor"/>
+    <text x="14" y="23" class="head">DATA_QUALITY</text>
+    <text x="14" y="57" class="key">PK check_id</text>
+    <text x="14" y="79" class="field">observed_at</text>
+    <text x="14" y="100" class="field">check_name</text>
+    <text x="14" y="121" class="field">status, value</text>
+    <text x="14" y="143" class="field">details : json</text>
+    <text x="14" y="168" class="muted">Nulos, rangos, frescura</text>
+  </g>
+  <g transform="translate(1260 510)">
+    <rect width="190" height="190" class="entity monitor"/>
+    <rect width="190" height="34" class="head-monitor"/>
+    <text x="14" y="23" class="head">DRIFT_REPORT</text>
+    <text x="14" y="57" class="key">PK report_id</text>
+    <text x="14" y="79" class="field">run_id : string</text>
+    <text x="14" y="100" class="field">feature_name</text>
+    <text x="14" y="121" class="field">psi, ks_stat</text>
+    <text x="14" y="143" class="field">threshold, status</text>
+    <text x="14" y="168" class="muted">Activa reentrenamiento</text>
+  </g>
+
+  <!-- relationships -->
+  <path d="M330 230 C400 230 410 300 510 300" class="rel" marker-end="url(#arrow)"/>
+  <text x="375" y="245" class="small">1:N</text>
+  <path d="M360 455 C420 455 440 390 510 390" class="rel" marker-end="url(#arrow)"/>
+  <text x="405" y="438" class="small">1:N</text>
+  <path d="M360 755 C425 755 440 430 510 430" class="rel dashed" marker-end="url(#arrow)"/>
+  <text x="390" y="690" class="small">1:1 por timestamp</text>
+  <path d="M675 475 L675 550" class="rel" marker-end="url(#arrow)"/>
+  <text x="690" y="520" class="small">usa corte</text>
+  <path d="M840 300 L940 235" class="rel" marker-end="url(#arrow)"/>
+  <text x="865" y="255" class="small">versiona</text>
+  <path d="M840 650 C890 650 885 510 940 510" class="rel" marker-end="url(#arrow)"/>
+  <text x="865" y="605" class="small">alimenta</text>
+  <path d="M1075 335 L1075 410" class="rel" marker-end="url(#arrow)"/>
+  <text x="1090" y="380" class="small">entrena</text>
+  <path d="M1075 615 L1075 700" class="rel" marker-end="url(#arrow)"/>
+  <text x="1090" y="660" class="small">produce</text>
+  <path d="M1210 510 C1235 510 1235 325 1260 325" class="rel dashed" marker-end="url(#arrow)"/>
+  <text x="1218" y="430" class="small">valida</text>
+  <path d="M1210 800 L1260 605" class="rel dashed" marker-end="url(#arrow)"/>
+  <text x="1215" y="720" class="small">monitorea</text>
+
+  <!-- design notes -->
+  <rect x="60" y="910" width="1390" height="92" class="card"/>
+  <text x="82" y="936" class="note">Decisiones clave para ML</text>
+  <text x="82" y="960" class="small">• La clave compuesta (station_id, timestamp) evita duplicados y permite construir rezagos sin mezclar estaciones.</text>
+  <text x="82" y="979" class="small">• DATA_CUTOFF y code_commit hacen reproducible cada entrenamiento; FEATURE_SNAPSHOT conserva la trazabilidad de las variables.</text>
+  <text x="82" y="998" class="small">• PREDICTION guarda el resultado aunque todavía no exista la etiqueta real; luego puede compararse con OBSERVATION para medir WAPE.</text>
+</svg>

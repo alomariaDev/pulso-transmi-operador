@@ -1,0 +1,55 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="720" viewBox="0 0 1200 720">
+<rect width="100%" height="100%" fill="#fbfaf7"/>
+<style>text{font-family:Arial,sans-serif;fill:#263238} .grid{stroke:#d9dedc;stroke-width:1} .axis{stroke:#52615d;stroke-width:1.3} .title{font-size:27px;font-weight:700} .subtitle{font-size:15px;fill:#61706b} .label{font-size:13px} .small{font-size:12px;fill:#61706b}</style>
+<text x="70" y="48" class="title">Estacionalidad temporal</text>
+<text x="70" y="75" class="subtitle">La demanda sube en las horas punta y cae durante la madrugada y el fin de semana</text>
+<line x1="90" y1="370.0" x2="1110" y2="370.0" class="grid"/>
+<text x="78" y="375.0" text-anchor="end" class="small">0</text>
+<line x1="90" y1="321.0" x2="1110" y2="321.0" class="grid"/>
+<text x="78" y="326.0" text-anchor="end" class="small">168</text>
+<line x1="90" y1="272.0" x2="1110" y2="272.0" class="grid"/>
+<text x="78" y="277.0" text-anchor="end" class="small">336</text>
+<line x1="90" y1="223.0" x2="1110" y2="223.0" class="grid"/>
+<text x="78" y="228.0" text-anchor="end" class="small">504</text>
+<line x1="90" y1="174.0" x2="1110" y2="174.0" class="grid"/>
+<text x="78" y="179.0" text-anchor="end" class="small">672</text>
+<line x1="90" y1="125.0" x2="1110" y2="125.0" class="grid"/>
+<text x="78" y="130.0" text-anchor="end" class="small">840</text>
+<line x1="90" y1="125" x2="90" y2="370" class="axis"/><line x1="90" y1="370" x2="1110" y2="370" class="axis"/>
+<polyline fill="none" stroke="#147d92" stroke-width="3" points="90.0,324.0 100.7,325.3 111.5,326.7 122.2,327.7 132.9,328.4 143.7,329.2 154.4,329.5 165.2,330.0 175.9,329.8 186.6,330.0 197.4,330.0 208.1,329.3 218.8,328.5 229.6,328.0 240.3,326.2 251.1,323.7 261.8,319.1 272.5,312.7 283.3,304.9 294.0,292.9 304.7,280.6 315.5,265.3 326.2,248.0 336.9,228.4 347.7,209.3 358.4,195.7 369.2,181.6 379.9,171.7 390.6,167.9 401.4,167.5 412.1,173.9 422.8,180.4 433.6,190.4 444.3,205.9 455.1,220.0 465.8,235.5 476.5,247.9 487.3,259.9 498.0,271.2 508.7,279.3 519.5,286.5 530.2,290.7 540.9,294.1 551.7,295.8 562.4,297.6 573.2,296.1 583.9,297.3 594.6,296.8 605.4,294.5 616.1,295.7 626.8,294.2 637.6,294.3 648.3,294.1 659.1,294.0 669.8,294.9 680.5,295.1 691.3,295.0 702.0,292.4 712.7,291.0 723.5,286.4 734.2,280.7 744.9,273.2 755.7,262.4 766.4,249.3 777.2,234.6 787.9,221.3 798.6,204.4 809.4,190.2 820.1,178.7 830.8,166.7 841.6,159.7 852.3,157.0 863.1,157.9 873.8,161.6 884.5,172.8 895.3,182.8 906.0,195.7 916.7,207.5 927.5,219.9 938.2,233.4 948.9,244.1 959.7,253.0 970.4,264.5 981.2,271.6 991.9,278.8 1002.6,285.3 1013.4,290.8 1024.1,297.5 1034.8,301.5 1045.6,305.9 1056.3,309.9 1067.1,313.1 1077.8,315.6 1088.5,318.7 1099.3,321.8 1110.0,323.0"/>
+<circle cx="90.0" cy="324.0" r="3.5" fill="#d95d39"/><text x="90.0" y="394" text-anchor="middle" class="small">00:00</text>
+<circle cx="175.9" cy="329.8" r="3.5" fill="#d95d39"/><text x="175.9" y="394" text-anchor="middle" class="small">02:00</text>
+<circle cx="261.8" cy="319.1" r="3.5" fill="#d95d39"/><text x="261.8" y="394" text-anchor="middle" class="small">04:00</text>
+<circle cx="347.7" cy="209.3" r="3.5" fill="#d95d39"/><text x="347.7" y="394" text-anchor="middle" class="small">06:00</text>
+<circle cx="433.6" cy="190.4" r="3.5" fill="#d95d39"/><text x="433.6" y="394" text-anchor="middle" class="small">08:00</text>
+<circle cx="519.5" cy="286.5" r="3.5" fill="#d95d39"/><text x="519.5" y="394" text-anchor="middle" class="small">10:00</text>
+<circle cx="605.4" cy="294.5" r="3.5" fill="#d95d39"/><text x="605.4" y="394" text-anchor="middle" class="small">12:00</text>
+<circle cx="691.3" cy="295.0" r="3.5" fill="#d95d39"/><text x="691.3" y="394" text-anchor="middle" class="small">14:00</text>
+<circle cx="777.2" cy="234.6" r="3.5" fill="#d95d39"/><text x="777.2" y="394" text-anchor="middle" class="small">16:00</text>
+<circle cx="863.1" cy="157.9" r="3.5" fill="#d95d39"/><text x="863.1" y="394" text-anchor="middle" class="small">18:00</text>
+<circle cx="948.9" cy="244.1" r="3.5" fill="#d95d39"/><text x="948.9" y="394" text-anchor="middle" class="small">20:00</text>
+<circle cx="1034.8" cy="301.5" r="3.5" fill="#d95d39"/><text x="1034.8" y="394" text-anchor="middle" class="small">22:00</text>
+<text x="90" y="110" class="label">Promedio por intervalo de 15 minutos</text>
+<line x1="90" y1="640.0" x2="1110" y2="640.0" class="grid"/>
+<text x="78" y="645.0" text-anchor="end" class="small">0</text>
+<line x1="90" y1="606.0" x2="1110" y2="606.0" class="grid"/>
+<text x="78" y="611.0" text-anchor="end" class="small">88</text>
+<line x1="90" y1="572.0" x2="1110" y2="572.0" class="grid"/>
+<text x="78" y="577.0" text-anchor="end" class="small">176</text>
+<line x1="90" y1="538.0" x2="1110" y2="538.0" class="grid"/>
+<text x="78" y="543.0" text-anchor="end" class="small">264</text>
+<line x1="90" y1="504.0" x2="1110" y2="504.0" class="grid"/>
+<text x="78" y="509.0" text-anchor="end" class="small">352</text>
+<line x1="90" y1="470.0" x2="1110" y2="470.0" class="grid"/>
+<text x="78" y="475.0" text-anchor="end" class="small">440</text>
+<line x1="90" y1="470" x2="90" y2="640" class="axis"/><line x1="90" y1="640" x2="1110" y2="640" class="axis"/>
+<polyline fill="none" stroke="#147d92" stroke-width="3" points="90.0,492.5 260.0,492.2 430.0,492.5 600.0,493.1 770.0,495.2 940.0,525.7 1110.0,524.6"/>
+<circle cx="90.0" cy="492.5" r="4" fill="#d95d39"/><text x="90.0" y="664" text-anchor="middle" class="small">Lun</text>
+<circle cx="260.0" cy="492.2" r="4" fill="#d95d39"/><text x="260.0" y="664" text-anchor="middle" class="small">Mar</text>
+<circle cx="430.0" cy="492.5" r="4" fill="#d95d39"/><text x="430.0" y="664" text-anchor="middle" class="small">Mie</text>
+<circle cx="600.0" cy="493.1" r="4" fill="#d95d39"/><text x="600.0" y="664" text-anchor="middle" class="small">Jue</text>
+<circle cx="770.0" cy="495.2" r="4" fill="#d95d39"/><text x="770.0" y="664" text-anchor="middle" class="small">Vie</text>
+<circle cx="940.0" cy="525.7" r="4" fill="#d95d39"/><text x="940.0" y="664" text-anchor="middle" class="small">Sab</text>
+<circle cx="1110.0" cy="524.6" r="4" fill="#d95d39"/><text x="1110.0" y="664" text-anchor="middle" class="small">Dom</text>
+<text x="90" y="455" class="label">Promedio por día de semana</text>
+</svg>
