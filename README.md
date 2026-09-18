@@ -33,6 +33,9 @@ python -m pip install -e '.[ml]'
 cp .env.example .env
 python examples/01_download.py
 python examples/02_naive_baseline.py
+python examples/03_model_comparison.py
+python examples/04_train_extra_trees.py
+python examples/05_submit_predictions.py
 ```
 
 En Windows PowerShell, la activación es `.venv\Scripts\Activate.ps1`.
@@ -56,6 +59,14 @@ print(observations.tail())
 El SDK recorre automáticamente todas las páginas. Si prefieres controlar cada
 página, usa `client.observations_page(...)` y conserva `next_cursor` exactamente
 como lo entrega la API.
+
+La comparación de modelos usa los últimos 7 días como validación temporal,
+rezagos de demanda, ventanas móviles, calendario y contexto. Consulta
+[docs/model-comparison.md](docs/model-comparison.md) para los resultados y la
+justificación del modelo seleccionado. El entrenamiento final del candidato
+ganador guarda `artifacts/extra_trees_demand.joblib`.
+El script `examples/05_submit_predictions.py` genera y envía las predicciones
+del ciclo abierto usando `PULSO_API_KEY` desde `.env`.
 
 ## Datos iniciales
 
