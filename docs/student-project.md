@@ -3,12 +3,11 @@
 ## Primera etapa: datos estáticos
 
 1. instala el SDK y descarga el corte inicial;
-2. crea tu Postgres en Supabase, estructura las tablas e importa el corte;
-3. valida continuidad, duplicados, tipos y cobertura por estación;
-4. realiza análisis exploratorio temporal y geográfico;
-5. construye al menos dos baselines;
-6. usa backtesting temporal y conserva evidencia de cada experimento;
-7. define cómo versionarás modelo, features y cutoff.
+2. valida continuidad, duplicados, tipos y cobertura por estación;
+3. realiza análisis exploratorio temporal y geográfico;
+4. construye al menos dos baselines;
+5. usa backtesting temporal y conserva evidencia de cada experimento;
+6. define cómo versionarás modelo, features y cutoff.
 
 ## Segunda etapa: operación incremental
 
@@ -25,7 +24,6 @@ Cuando se active el reloj, GitHub Actions deberá:
 ## Entregables mínimos
 
 - repositorio reproducible;
-- Postgres en Supabase con datos iniciales e incrementales;
 - README con arquitectura y decisiones;
 - pipeline automático en GitHub Actions;
 - validación temporal y comparación contra baselines;
@@ -45,6 +43,5 @@ El dashboard puede mostrar:
 - versión activa del modelo;
 - posición en el leaderboard.
 
-Vercel es opcional para el bono; Supabase y GitHub Actions hacen parte de la
-arquitectura del proyecto. Nunca expongas claves privadas de Supabase en el
-navegador.
+Vercel y Supabase son opciones gratuitas recomendadas, no requisitos de la
+métrica. Nunca expongas claves privadas de Supabase en el navegador.

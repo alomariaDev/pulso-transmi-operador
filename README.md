@@ -2,7 +2,7 @@
 
 Starter kit oficial del reto MLOps **Pulso TransMi**. Incluye un cliente Python,
 ejemplos reproducibles y una plantilla de GitHub Actions para construir un
-pipeline que descargue datos, entrene, monitoree y envíe
+pipeline que descargue datos, entrene, monitoree y posteriormente envíe
 predicciones.
 
 > **Disponible públicamente:** la API de lectura está en
@@ -71,7 +71,7 @@ Para evaluación local, usa una división temporal: por ejemplo, primeros 38 dí
 para entrenamiento y últimos 7 para validación. Una partición aleatoria mezcla
 futuro y pasado y genera métricas engañosas.
 
-## API y competencia `0.7.1`
+## API de lectura `0.2.0`
 
 | Método | Ruta | Uso |
 |---|---|---|
@@ -81,15 +81,11 @@ futuro y pasado y genera métricas engañosas.
 | `GET` | `/v1/observations` | Demanda paginada |
 | `GET` | `/v1/context` | Clima y eventos |
 | `GET` | `/v1/downloads/{filename}` | Descarga completa |
-| `GET` | `/v1/stream/observations` | Nuevos datos liberados, con cursor |
-| `GET` | `/v1/forecast-cycles/current` | Ciclo abierto y objetivos exactos |
-| `GET` | `/v1/submissions/current` | Recibo propio si ya entregaste el ciclo |
-| `POST` | `/v1/submissions` | Entrega de predicciones con API key |
 
 Swagger está disponible en `/docs`. Consulta [docs/api.md](docs/api.md) para
 filtros, paginación y errores.
 
-## Estructura esperada del proyecto individual
+## Estructura esperada del proyecto estudiantil
 
 ```text
 mi-pulso-transmi/
@@ -105,7 +101,7 @@ mi-pulso-transmi/
 └── .github/workflows/pipeline.yml
 ```
 
-El repositorio de cada estudiante debe dejar trazabilidad de:
+El repositorio de cada equipo debe dejar trazabilidad de:
 
 - cutoff de datos usado;
 - versión o commit del código;
@@ -116,24 +112,18 @@ El repositorio de cada estudiante debe dejar trazabilidad de:
 
 ## GitHub Actions
 
-[`templates/pipeline.yml`](templates/pipeline.yml) es una plantilla para el
-repositorio individual. Cópiala a `.github/workflows/pipeline.yml`, implementa
-`src/pipeline.py` y ejecuta primero `workflow_dispatch`. Luego agrega tu API key
-como secret y activa el horario cuando el pipeline ya compruebe el ciclo y sus
-recibos. El servidor solicita hasta 48 predicciones en cada ciclo oficial; lee
-siempre los targets concretos de `/v1/forecast-cycles/current`.
+[`templates/pipeline.yml`](templates/pipeline.yml) es una plantilla manual. Cópiala
+a `.github/workflows/pipeline.yml` dentro del repositorio de tu equipo. Cuando se
+habilite la competencia, agrega el API key como secret y luego activa el horario
+indicado por el profesor.
 
 Nunca escribas API keys, contraseñas de Supabase ni tokens dentro del código.
-La guía [Automatización y entregas](docs/automation.md) explica el flujo,
-la frecuencia, la evidencia de éxito y los límites gratuitos.
 
 ## Supabase y Vercel
 
-Supabase es la base de datos del proyecto individual: conserva observaciones
-incrementales, cursor de ingesta, ejecuciones, recibos y métricas. Su Storage
-privado puede guardar versiones promovidas del modelo. Vercel es opcional y
-corresponde al bono de visualización. La inferencia y automatización corren en
-GitHub Actions.
+Supabase es opcional para persistir ejecuciones, métricas, predicciones y estado
+del modelo. Vercel es opcional y corresponde al bono de visualización. Ninguna de
+las dos plataformas reemplaza el repositorio ni GitHub Actions.
 
 Consulta [docs/student-project.md](docs/student-project.md) para el flujo completo
 y los entregables.
@@ -147,9 +137,8 @@ WAPE = sum(abs(real - predicción)) / sum(real)
 Accuracy = 100 × max(0, 1 - WAPE)
 ```
 
-La métrica se calcula por estación y luego se promedia. Consulta el
-[contrato vigente de submissions](https://github.com/uexternadojz/pulso-transmi/blob/main/docs/api-contract.md)
-para el payload, los errores y la idempotencia.
+La métrica se calcula por estación y luego se promedia. El contrato definitivo
+de submissions y leaderboard se publicará antes de iniciar la ventana competitiva.
 
 ## Desarrollo del SDK
 

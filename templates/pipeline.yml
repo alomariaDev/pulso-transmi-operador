@@ -2,14 +2,9 @@ name: pulso-transmi-pipeline
 
 on:
   workflow_dispatch:
-  # Actívalo tras verificar la ejecución manual y la detección de ciclos.
-  # GitHub usa UTC; la API, no el cron, decide cuál ciclo está abierto.
+  # Activa el schedule únicamente cuando el profesor publique la frecuencia.
   # schedule:
-  #   - cron: "7,22,37,52 * * * *"
-
-concurrency:
-  group: pulso-transmi-pipeline
-  cancel-in-progress: false
+  #   - cron: "7 * * * *"
 
 jobs:
   pipeline:
@@ -19,9 +14,9 @@ jobs:
       contents: read
 
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v4
 
-      - uses: actions/setup-python@v6
+      - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
           cache: pip
@@ -32,7 +27,7 @@ jobs:
       - name: Run tests
         run: pytest -q
 
-      - name: Consultar ciclo, ingerir, decidir modelo y enviar
+      - name: Ingest, train and predict
         env:
           PULSO_API_URL: ${{ vars.PULSO_API_URL }}
           PULSO_API_KEY: ${{ secrets.PULSO_API_KEY }}
