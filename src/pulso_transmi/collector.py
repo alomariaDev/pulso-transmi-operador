@@ -73,7 +73,7 @@ def collect(
         for filename in files:
             client.download(filename, destination / filename)
 
-    with psycopg.connect(database_url, prepare_threshold=0) as connection:
+    with psycopg.connect(database_url, prepare_threshold=None) as connection:
         stations = upsert_rows(
             connection,
             "stations",
