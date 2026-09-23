@@ -1,0 +1,440 @@
+<!DOCTYPE html>
+<html lang="es" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Pulso TransMi — MLOps Dashboard</title>
+  
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              50: '#eef2ff',
+              100: '#e0e7ff',
+              500: '#6366f1',
+              600: '#4f46e5',
+              700: '#4338ca',
+            },
+            transmi: {
+              red: '#e11d48',
+              yellow: '#eab308',
+            }
+          }
+        }
+      }
+    }
+  </script>
+
+  <!-- Leaflet Maps CSS & JS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+
+  <!-- Custom Styles -->
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body class="bg-slate-950 text-slate-100 font-sans antialiased min-h-screen pb-20 md:pb-8 selection:bg-brand-500 selection:text-white">
+
+  <!-- TOP HEADER / NAVBAR -->
+  <header class="sticky top-0 z-40 bg-slate-900/80 backdrop-blur-md border-b border-slate-800">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="flex items-center justify-between h-16">
+        
+        <!-- Logo & Title -->
+        <div class="flex items-center space-x-3">
+          <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-rose-600 to-amber-500 flex items-center justify-center shadow-lg shadow-rose-600/20 text-white font-black text-xl">
+            <i data-lucide="bus" class="w-5 h-5"></i>
+          </div>
+          <div>
+            <div class="flex items-center space-x-2">
+              <h1 class="text-base sm:text-lg font-bold bg-gradient-to-r from-white via-slate-200 to-slate-400 bg-clip-text text-transparent">Pulso TransMi</h1>
+              <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse mr-1.5"></span>
+                En vivo
+              </span>
+            </div>
+            <p class="text-xs text-slate-400 hidden sm:block">Plataforma MLOps &amp; Predicción de Demanda en Tiempo Real</p>
+          </div>
+        </div>
+
+        <!-- System Badges & Actions -->
+        <div class="flex items-center space-x-2 sm:space-x-4">
+          <div class="hidden lg:flex items-center space-x-3 text-xs">
+            <div class="flex items-center space-x-1.5 px-2.5 py-1 rounded-lg bg-slate-800/80 border border-slate-700/50 text-slate-300">
+              <i data-lucide="database" class="w-3.5 h-3.5 text-emerald-400"></i>
+              <span>Supabase: <b>Conectado</b></span>
+            </div>
+            <div class="flex items-center space-x-1.5 px-2.5 py-1 rounded-lg bg-slate-800/80 border border-slate-700/50 text-slate-300">
+              <i data-lucide="cpu" class="w-3.5 h-3.5 text-brand-500"></i>
+              <span>GitHub Actions: <b>10m</b></span>
+            </div>
+          </div>
+
+          <button id="theme-toggle" class="p-2 rounded-lg bg-slate-800/80 hover:bg-slate-700/80 border border-slate-700/50 text-slate-300 hover:text-white transition">
+            <i data-lucide="moon" class="w-4 h-4 dark:hidden"></i>
+            <i data-lucide="sun" class="w-4 h-4 hidden dark:block"></i>
+          </button>
+        </div>
+
+      </div>
+    </div>
+  </header>
+
+  <!-- MAIN CONTAINER -->
+  <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 space-y-6">
+
+    <!-- DESKTOP NAV TABS -->
+    <div class="hidden md:flex items-center space-x-2 border-b border-slate-800 pb-2">
+      <button onclick="switchTab('overview')" class="tab-btn active px-4 py-2 rounded-lg text-sm font-medium transition flex items-center space-x-2" data-tab="overview">
+        <i data-lucide="layout-dashboard" class="w-4 h-4"></i>
+        <span>Resumen General</span>
+      </button>
+      <button onclick="switchTab('map-stations')" class="tab-btn px-4 py-2 rounded-lg text-sm font-medium transition flex items-center space-x-2" data-tab="map-stations">
+        <i data-lucide="map-pin" class="w-4 h-4"></i>
+        <span>Estaciones &amp; Mapa</span>
+      </button>
+      <button onclick="switchTab('models')" class="tab-btn px-4 py-2 rounded-lg text-sm font-medium transition flex items-center space-x-2" data-tab="models">
+        <i data-lucide="award" class="w-4 h-4"></i>
+        <span>Modelos &amp; MLOps</span>
+      </button>
+      <button onclick="switchTab('drift')" class="tab-btn px-4 py-2 rounded-lg text-sm font-medium transition flex items-center space-x-2" data-tab="drift">
+        <i data-lucide="activity" class="w-4 h-4"></i>
+        <span>Monitor de Drift</span>
+      </button>
+    </div>
+
+    <!-- KPI CARDS GRID -->
+    <section class="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+      
+      <!-- Card 1: Accuracy -->
+      <div class="bg-slate-900/60 border border-slate-800/80 rounded-2xl p-4 sm:p-5 relative overflow-hidden backdrop-blur-sm group hover:border-slate-700 transition">
+        <div class="absolute -right-4 -bottom-4 w-20 h-20 bg-emerald-500/10 rounded-full blur-xl pointer-events-none"></div>
+        <div class="flex items-center justify-between text-slate-400 mb-2">
+          <span class="text-xs font-semibold uppercase tracking-wider">Accuracy Global</span>
+          <span class="p-1.5 rounded-lg bg-emerald-500/10 text-emerald-400"><i data-lucide="trending-up" class="w-4 h-4"></i></span>
+        </div>
+        <div class="flex items-baseline space-x-2">
+          <h2 id="kpi-accuracy" class="text-2xl sm:text-3xl font-extrabold text-white">87.21%</h2>
+          <span class="text-xs font-semibold text-emerald-400">+39% vs Base</span>
+        </div>
+        <p class="text-xs text-slate-400 mt-1">Modelo ExtraTreesRegressor</p>
+      </div>
+
+      <!-- Card 2: WAPE -->
+      <div class="bg-slate-900/60 border border-slate-800/80 rounded-2xl p-4 sm:p-5 relative overflow-hidden backdrop-blur-sm group hover:border-slate-700 transition">
+        <div class="absolute -right-4 -bottom-4 w-20 h-20 bg-brand-500/10 rounded-full blur-xl pointer-events-none"></div>
+        <div class="flex items-center justify-between text-slate-400 mb-2">
+          <span class="text-xs font-semibold uppercase tracking-wider">Error WAPE</span>
+          <span class="p-1.5 rounded-lg bg-brand-500/10 text-brand-500"><i data-lucide="target" class="w-4 h-4"></i></span>
+        </div>
+        <div class="flex items-baseline space-x-2">
+          <h2 id="kpi-wape" class="text-2xl sm:text-3xl font-extrabold text-white">0.1279</h2>
+          <span class="text-xs font-semibold text-brand-400">Validación 7d</span>
+        </div>
+        <p class="text-xs text-slate-400 mt-1">Error medio ponderado</p>
+      </div>
+
+      <!-- Card 3: Estaciones -->
+      <div class="bg-slate-900/60 border border-slate-800/80 rounded-2xl p-4 sm:p-5 relative overflow-hidden backdrop-blur-sm group hover:border-slate-700 transition">
+        <div class="absolute -right-4 -bottom-4 w-20 h-20 bg-rose-500/10 rounded-full blur-xl pointer-events-none"></div>
+        <div class="flex items-center justify-between text-slate-400 mb-2">
+          <span class="text-xs font-semibold uppercase tracking-wider">Estaciones</span>
+          <span class="p-1.5 rounded-lg bg-rose-500/10 text-rose-400"><i data-lucide="map-pin" class="w-4 h-4"></i></span>
+        </div>
+        <div class="flex items-baseline space-x-2">
+          <h2 id="kpi-stations" class="text-2xl sm:text-3xl font-extrabold text-white">12</h2>
+          <span class="text-xs font-semibold text-rose-400">4 Troncales</span>
+        </div>
+        <p class="text-xs text-slate-400 mt-1">Bogotá TransMilenio</p>
+      </div>
+
+      <!-- Card 4: Observaciones -->
+      <div class="bg-slate-900/60 border border-slate-800/80 rounded-2xl p-4 sm:p-5 relative overflow-hidden backdrop-blur-sm group hover:border-slate-700 transition">
+        <div class="absolute -right-4 -bottom-4 w-20 h-20 bg-amber-500/10 rounded-full blur-xl pointer-events-none"></div>
+        <div class="flex items-center justify-between text-slate-400 mb-2">
+          <span class="text-xs font-semibold uppercase tracking-wider">Observaciones</span>
+          <span class="p-1.5 rounded-lg bg-amber-500/10 text-amber-400"><i data-lucide="database" class="w-4 h-4"></i></span>
+        </div>
+        <div class="flex items-baseline space-x-2">
+          <h2 id="kpi-observations" class="text-2xl sm:text-3xl font-extrabold text-white">51,840</h2>
+          <span class="text-xs font-semibold text-amber-400">15 min</span>
+        </div>
+        <p class="text-xs text-slate-400 mt-1">45 días históricos</p>
+      </div>
+
+    </section>
+
+    <!-- SECTION: OVERVIEW / MAP & TIME-SERIES -->
+    <div id="tab-content-overview" class="space-y-6">
+      
+      <!-- MAP & STATION SPOTLIGHT -->
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        
+        <!-- Left 2 Cols: Interactive Map -->
+        <div class="lg:col-span-2 bg-slate-900/60 border border-slate-800/80 rounded-2xl p-4 sm:p-6 backdrop-blur-sm flex flex-col">
+          <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-4 gap-2">
+            <div>
+              <h3 class="text-base font-bold text-white flex items-center space-x-2">
+                <i data-lucide="map" class="w-5 h-5 text-rose-500"></i>
+                <span>Mapa Geográfico de Estaciones</span>
+              </h3>
+              <p class="text-xs text-slate-400">Toca un marcador para ver detalles y series de tiempo</p>
+            </div>
+            <div class="flex items-center space-x-2">
+              <span class="w-2.5 h-2.5 rounded-full bg-rose-500 inline-block"></span>
+              <span class="text-xs text-slate-300">Mayor demanda</span>
+              <span class="w-2.5 h-2.5 rounded-full bg-emerald-500 inline-block ml-2"></span>
+              <span class="text-xs text-slate-300">Menor demanda</span>
+            </div>
+          </div>
+          
+          <!-- Leaflet Map Container -->
+          <div id="map" class="w-full h-72 sm:h-96 rounded-xl border border-slate-800/80 z-10"></div>
+        </div>
+
+        <!-- Right 1 Col: Selected Station Detail -->
+        <div class="bg-slate-900/60 border border-slate-800/80 rounded-2xl p-4 sm:p-6 backdrop-blur-sm flex flex-col justify-between">
+          <div>
+            <div class="flex items-center justify-between border-b border-slate-800 pb-3 mb-4">
+              <span class="text-xs font-semibold text-brand-500 uppercase tracking-wider">Estación Seleccionada</span>
+              <span id="st-badge" class="px-2 py-0.5 rounded text-xs font-mono bg-slate-800 text-slate-300 border border-slate-700">ID: 07107</span>
+            </div>
+
+            <!-- Station Selector Dropdown -->
+            <label class="block text-xs font-medium text-slate-400 mb-1">Cambiar Estación:</label>
+            <select id="station-select" class="w-full bg-slate-800/90 border border-slate-700 text-white rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 mb-4 transition">
+              <!-- Options populated by JS -->
+            </select>
+
+            <h4 id="st-name" class="text-lg font-bold text-white mb-1">Ricaurte - NQS</h4>
+            <p id="st-corridor" class="text-xs text-slate-400 mb-4 flex items-center space-x-1">
+              <i data-lucide="git-commit" class="w-3.5 h-3.5 text-slate-500"></i>
+              <span>Troncal NQS Central</span>
+            </p>
+
+            <div class="grid grid-cols-2 gap-3 mb-4">
+              <div class="bg-slate-800/50 border border-slate-700/50 rounded-xl p-3">
+                <span class="text-xs text-slate-400 block">Demanda Media</span>
+                <span id="st-mean" class="text-lg font-extrabold text-white">482.6</span>
+                <span class="text-[10px] text-slate-400 block">pasajeros / 15m</span>
+              </div>
+              <div class="bg-slate-800/50 border border-slate-700/50 rounded-xl p-3">
+                <span class="text-xs text-slate-400 block">Demanda Pico</span>
+                <span id="st-max" class="text-lg font-extrabold text-rose-400">1,240.0</span>
+                <span class="text-[10px] text-slate-400 block">07:00 / 18:00</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Mini Hourly Curve -->
+          <div>
+            <span class="text-xs font-semibold text-slate-400 block mb-2">Perfil Diario Típico (0h - 23h)</span>
+            <div class="h-28 w-full">
+              <canvas id="miniHourlyChart"></canvas>
+            </div>
+          </div>
+
+        </div>
+
+      </div>
+
+      <!-- TIME-SERIES: ACTUAL VS PREDICTED (VALIDATION) -->
+      <div class="bg-slate-900/60 border border-slate-800/80 rounded-2xl p-4 sm:p-6 backdrop-blur-sm">
+        <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-4 gap-3">
+          <div>
+            <h3 class="text-base font-bold text-white flex items-center space-x-2">
+              <i data-lucide="line-chart" class="w-5 h-5 text-brand-500"></i>
+              <span>Pronóstico vs Demanda Real (Ventana de Validación)</span>
+            </h3>
+            <p class="text-xs text-slate-400">Comparación temporal a 15 minutos en <span id="ts-station-name" class="font-bold text-slate-200">Ricaurte - NQS</span></p>
+          </div>
+          <div class="flex items-center space-x-4 text-xs">
+            <span class="flex items-center space-x-1.5"><span class="w-3 h-1 bg-brand-500 rounded"></span><span class="text-slate-300">Demanda Real</span></span>
+            <span class="flex items-center space-x-1.5"><span class="w-3 h-1 bg-emerald-400 rounded"></span><span class="text-slate-300">ExtraTrees Predicho</span></span>
+          </div>
+        </div>
+
+        <div class="w-full h-64 sm:h-80">
+          <canvas id="timeSeriesChart"></canvas>
+        </div>
+      </div>
+
+      <!-- HISTORICAL DAILY TIMELINE -->
+      <div class="bg-slate-900/60 border border-slate-800/80 rounded-2xl p-4 sm:p-6 backdrop-blur-sm">
+        <div class="flex items-center justify-between mb-4">
+          <div>
+            <h3 class="text-base font-bold text-white flex items-center space-x-2">
+              <i data-lucide="calendar" class="w-5 h-5 text-amber-500"></i>
+              <span>Evolución Histórica de Demanda Agregada</span>
+            </h3>
+            <p class="text-xs text-slate-400">Promedio diario del sistema (26 de julio - 8 de septiembre de 2026)</p>
+          </div>
+        </div>
+        <div class="w-full h-56 sm:h-72">
+          <canvas id="dailyTrendChart"></canvas>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- SECTION: MODELS & MLOPS LEADERBOARD -->
+    <div id="tab-content-models" class="space-y-6 hidden">
+      <div class="bg-slate-900/60 border border-slate-800/80 rounded-2xl p-4 sm:p-6 backdrop-blur-sm">
+        <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-4 gap-2">
+          <div>
+            <h3 class="text-base font-bold text-white flex items-center space-x-2">
+              <i data-lucide="award" class="w-5 h-5 text-yellow-400"></i>
+              <span>Tabla de Comparación de Modelos &amp; Baselines</span>
+            </h3>
+            <p class="text-xs text-slate-400">Evaluación de validación temporal sobre los últimos 7 días con 17 features</p>
+          </div>
+          <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-brand-500/10 text-brand-400 border border-brand-500/20">
+            Backtesting Temporal Estricto
+          </span>
+        </div>
+
+        <!-- Table Responsive Container -->
+        <div class="overflow-x-auto">
+          <table class="w-full text-left text-sm">
+            <thead>
+              <tr class="border-b border-slate-800 text-slate-400 text-xs uppercase tracking-wider">
+                <th class="py-3 px-4">#</th>
+                <th class="py-3 px-4">Modelo</th>
+                <th class="py-3 px-4">WAPE</th>
+                <th class="py-3 px-4">Accuracy</th>
+                <th class="py-3 px-4">Tiempo Entr.</th>
+                <th class="py-3 px-4">Features</th>
+                <th class="py-3 px-4">Estado</th>
+              </tr>
+            </thead>
+            <tbody id="models-table-body" class="divide-y divide-slate-800/60">
+              <!-- Populated by JS -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- MLOPS ARCHITECTURE CARD -->
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div class="bg-slate-900/60 border border-slate-800/80 rounded-2xl p-5 backdrop-blur-sm">
+          <h4 class="text-sm font-bold text-white mb-3 flex items-center space-x-2">
+            <i data-lucide="git-branch" class="w-4 h-4 text-emerald-400"></i>
+            <span>Pipeline de Inferencia &amp; Submissions</span>
+          </h4>
+          <ul class="space-y-2.5 text-xs text-slate-300">
+            <li class="flex items-start space-x-2">
+              <span class="w-5 h-5 rounded-full bg-slate-800 text-slate-400 flex items-center justify-center font-bold text-[10px] shrink-0 mt-0.5">1</span>
+              <span>Cron cada 10 min en GitHub Actions consulta <code>GET /v1/forecast-cycles/current</code>.</span>
+            </li>
+            <li class="flex items-start space-x-2">
+              <span class="w-5 h-5 rounded-full bg-slate-800 text-slate-400 flex items-center justify-center font-bold text-[10px] shrink-0 mt-0.5">2</span>
+              <span>Si hay ciclo abierto, sincroniza datos de demanda y clima.</span>
+            </li>
+            <li class="flex items-start space-x-2">
+              <span class="w-5 h-5 rounded-full bg-slate-800 text-slate-400 flex items-center justify-center font-bold text-[10px] shrink-0 mt-0.5">3</span>
+              <span>Genera features (rezagos de 15m, 24h, 7d y ventanas móviles).</span>
+            </li>
+            <li class="flex items-start space-x-2">
+              <span class="w-5 h-5 rounded-full bg-slate-800 text-slate-400 flex items-center justify-center font-bold text-[10px] shrink-0 mt-0.5">4</span>
+              <span>Envía predicciones por <code>POST /v1/submissions</code> con clave de idempotencia.</span>
+            </li>
+          </ul>
+        </div>
+
+        <div class="bg-slate-900/60 border border-slate-800/80 rounded-2xl p-5 backdrop-blur-sm">
+          <h4 class="text-sm font-bold text-white mb-3 flex items-center space-x-2">
+            <i data-lucide="server" class="w-4 h-4 text-brand-500"></i>
+            <span>Persistencia &amp; Base de Datos</span>
+          </h4>
+          <ul class="space-y-2.5 text-xs text-slate-300">
+            <li class="flex items-center justify-between py-1 border-b border-slate-800/80">
+              <span class="text-slate-400">Esquema:</span>
+              <span class="font-mono text-slate-200">pulso (PostgreSQL)</span>
+            </li>
+            <li class="flex items-center justify-between py-1 border-b border-slate-800/80">
+              <span class="text-slate-400">Tablas Principales:</span>
+              <span class="font-mono text-slate-200">stations, observations, context</span>
+            </li>
+            <li class="flex items-center justify-between py-1 border-b border-slate-800/80">
+              <span class="text-slate-400">Trazabilidad ML:</span>
+              <span class="font-mono text-slate-200">model_versions, drift_reports</span>
+            </li>
+            <li class="flex items-center justify-between py-1">
+              <span class="text-slate-400">Frecuencia Colector:</span>
+              <span class="font-mono text-emerald-400 font-semibold">1 hora (Automático)</span>
+            </li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <!-- SECTION: DRIFT MONITOR -->
+    <div id="tab-content-drift" class="space-y-6 hidden">
+      <div class="bg-slate-900/60 border border-slate-800/80 rounded-2xl p-4 sm:p-6 backdrop-blur-sm">
+        <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-4 gap-2">
+          <div>
+            <h3 class="text-base font-bold text-white flex items-center space-x-2">
+              <i data-lucide="shield-alert" class="w-5 h-5 text-emerald-400"></i>
+              <span>Monitor de Estabilidad de Variables (Population Stability Index - PSI)</span>
+            </h3>
+            <p class="text-xs text-slate-400">Comparación continua de distribución entre los últimos 7 días y la referencia base</p>
+          </div>
+          <div class="flex items-center space-x-2 text-xs">
+            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-medium">
+              PSI &lt; 0.10: Estable
+            </span>
+            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full bg-rose-500/10 text-rose-400 border border-rose-500/20 font-medium">
+              PSI &gt; 0.20: Alerta Drift
+            </span>
+          </div>
+        </div>
+
+        <div id="drift-cards-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          <!-- Populated by JS -->
+        </div>
+
+        <div class="mt-6 p-4 rounded-xl bg-slate-800/40 border border-slate-700/50 flex items-start space-x-3">
+          <i data-lucide="info" class="w-5 h-5 text-brand-500 shrink-0 mt-0.5"></i>
+          <p class="text-xs text-slate-300">
+            <strong>Estrategia de Reentrenamiento Automático:</strong> Cuando el workflow <code>pulso-transmi-drift.yml</code> detecta un PSI mayor a 0.20 en cualquier variable predictora, se dispara automáticamente el script de reentrenamiento con los últimos datos disponibles para evitar la degradación del WAPE en producción.
+          </p>
+        </div>
+      </div>
+    </div>
+
+  </main>
+
+  <!-- MOBILE BOTTOM NAVIGATION (Optimized for one-thumb mobile experience) -->
+  <nav class="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-slate-900/95 backdrop-blur-lg border-t border-slate-800 px-4 py-2 flex justify-around items-center">
+    <button onclick="switchTab('overview')" class="mobile-nav-btn active flex flex-col items-center py-1 text-slate-400 hover:text-white" data-tab="overview">
+      <i data-lucide="layout-dashboard" class="w-5 h-5 mb-1"></i>
+      <span class="text-[10px] font-medium">Resumen</span>
+    </button>
+    <button onclick="switchTab('map-stations')" class="mobile-nav-btn flex flex-col items-center py-1 text-slate-400 hover:text-white" data-tab="map-stations">
+      <i data-lucide="map-pin" class="w-5 h-5 mb-1"></i>
+      <span class="text-[10px] font-medium">Estaciones</span>
+    </button>
+    <button onclick="switchTab('models')" class="mobile-nav-btn flex flex-col items-center py-1 text-slate-400 hover:text-white" data-tab="models">
+      <i data-lucide="award" class="w-5 h-5 mb-1"></i>
+      <span class="text-[10px] font-medium">Modelos</span>
+    </button>
+    <button onclick="switchTab('drift')" class="mobile-nav-btn flex flex-col items-center py-1 text-slate-400 hover:text-white" data-tab="drift">
+      <i data-lucide="activity" class="w-5 h-5 mb-1"></i>
+      <span class="text-[10px] font-medium">Drift</span>
+    </button>
+  </nav>
+
+  <!-- App Script -->
+  <script src="app.js"></script>
+</body>
+</html>
