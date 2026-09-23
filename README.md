@@ -36,6 +36,7 @@ python examples/02_naive_baseline.py
 python examples/03_model_comparison.py
 python examples/04_train_extra_trees.py
 python examples/05_submit_predictions.py
+python -m pulso_transmi.collector
 ```
 
 En Windows PowerShell, la activación es `.venv\Scripts\Activate.ps1`.
@@ -67,6 +68,11 @@ justificación del modelo seleccionado. El entrenamiento final del candidato
 ganador guarda `artifacts/extra_trees_demand.joblib`.
 El script `examples/05_submit_predictions.py` genera y envía las predicciones
 del ciclo abierto usando `PULSO_API_KEY` desde `.env`.
+
+El colector `python -m pulso_transmi.collector` descarga los datos del API y los
+actualiza en las tablas `pulso.stations`, `pulso.context` y
+`pulso.observations` de PostgreSQL. Requiere `PULSO_API_KEY` y
+`SUPABASE_DB_URL` en el entorno.
 
 El workflow [`pulso-transmi-pipeline.yml`](.github/workflows/pulso-transmi-pipeline.yml)
 despierta cada 10 minutos. El cron no decide si se envía una predicción: el

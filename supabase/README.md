@@ -33,3 +33,19 @@ específicas para el rol correspondiente. El pipeline server-side puede usar el
 - `model_versions`, `training_runs`, `predictions`: ciclo de entrenamiento y predicción.
 - `data_quality_checks`, `drift_reports`: calidad, drift y decisiones de reentrenamiento.
 - `prediction_evaluation`: vista para comparar predicciones contra observaciones disponibles.
+
+## Colector horario
+
+El workflow `.github/workflows/pulso-transmi-collector.yml` se ejecuta cada hora
+y llama a `python -m pulso_transmi.collector`. El colector descarga las fuentes
+del API y hace upsert dentro de una transacción PostgreSQL, por lo que un reintento
+no duplica datos.
+
+Configura estos secretos en GitHub Actions:
+
+- `PULSO_API_KEY`: clave del API de Pulso TransMi.
+- `SUPABASE_DB_URL`: cadena de conexión PostgreSQL del proyecto Supabase, tomada
+	de **Project Settings > Database > Connection string**. Usa la conexión pooled
+	si el proveedor recomienda pooler para GitHub Actions.
+
+La cadena de conexión nunca debe escribirse en el repositorio ni aparecer en logs.
