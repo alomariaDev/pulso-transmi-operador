@@ -42,11 +42,12 @@ jobs:
       - name: Publish collector log summary
         if: always()
         run: |
+          timestamp=$(date -u +%Y-%m-%dT%H:%M:%SZ)
           {
             echo "## Collector run"
-            echo "- Run: \`${GITHUB_RUN_ID}\`"
-            echo "- Commit: \`${GITHUB_SHA::7}\`"
-            echo "- UTC: \`${date -u +%Y-%m-%dT%H:%M:%SZ}\`"
+            echo "- Run: ${GITHUB_RUN_ID}"
+            echo "- Commit: ${GITHUB_SHA::7}"
+            echo "- UTC: ${timestamp}"
             echo
             echo '```text'
             cat collector.log 2>/dev/null || echo 'No se generó log del colector.'
