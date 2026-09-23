@@ -3,7 +3,8 @@ name: pulso-transmi-collector
 on:
   workflow_dispatch:
   schedule:
-    - cron: "0 * * * *"
+    # GitHub Actions no admite intervalos de 2 minutos; 5 minutos es el mínimo práctico.
+    - cron: "*/5 * * * *"
 
 concurrency:
   group: pulso-transmi-collector
@@ -33,4 +34,30 @@ jobs:
         run: python -m pip install -e "."
 
       - name: Collect API data into Supabase PostgreSQL
-        run: python -m pulso_transmi.collector
+        id: collect
+        run: |
+          set -o pipefail
+          python -m pulso_transmi.collector 2>&1 | tee collector.log
+
+      - name: Publish collector log summary
+        if: always()
+        run: |
+          {
+            echo "## Collector run"
+            echo "- Run: \`${GITHUB_RUN_ID}\`"
+            echo "- Commit: \`${GITHUB_SHA::7}\`"
+            echo "- UTC: \`${date -u +%Y-%m-%dT%H:%M:%SZ}\`"
+            echo
+            echo '```text'
+            cat collector.log 2>/dev/null || echo 'No se generó log del colector.'
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload collector log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: collector-log-${{ github.run_id }}
+          path: collector.log
+          if-no-files-found: ignore
+          retention-days: 7
