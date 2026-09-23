@@ -88,11 +88,18 @@ Supabase Free incluye 500 MB de Postgres y 1 GB de Storage por proyecto. Mide
 el tamaño de tus tablas y conserva solo versiones promovidas del modelo. Sus
 proyectos gratis pueden pausarse tras una semana de inactividad.
 
+Vercel Hobby es gratuito para un dashboard personal. Úsalo para mostrar
+accuracy, drift, estado del pipeline y leaderboard; el entrenamiento y la
+entrega siguen en Actions. Los cron de Hobby no garantizan precisión temporal,
+por lo que no deben controlar la ventana de submissions.
+
 Fuentes oficiales consultadas el 23 de septiembre de 2026:
 [GitHub Actions billing](https://docs.github.com/en/billing/concepts/product-billing/github-actions),
 [minutos facturables](https://docs.github.com/en/actions/how-tos/monitor-workflows/view-job-execution-time),
 [schedule](https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows),
-[Supabase Free](https://supabase.com/docs/guides/platform/billing-on-supabase).
+[Supabase Free](https://supabase.com/docs/guides/platform/billing-on-supabase),
+[Vercel Hobby](https://vercel.com/docs/plans/hobby),
+[precisión de Vercel Cron](https://vercel.com/docs/cron-jobs/usage-and-pricing).
 
 El [contrato técnico completo](https://github.com/uexternadojz/pulso-transmi/blob/main/docs/api-contract.md)
 define el JSON, los guardrails, códigos de error e idempotencia.
