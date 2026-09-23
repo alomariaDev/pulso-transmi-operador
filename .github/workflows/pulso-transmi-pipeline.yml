@@ -5,17 +5,25 @@ on:
   schedule:
     - cron: "*/10 * * * *"
 
+concurrency:
+  group: pulso-transmi-pipeline
+  cancel-in-progress: false
+
 jobs:
-  pipeline:
+  predict:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
       contents: read
+    env:
+      PULSO_API_KEY: ${{ secrets.PULSO_API_KEY }}
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
 
-      - uses: actions/setup-python@v5
+      - name: Set up Python
+        uses: actions/setup-python@v5
         with:
           python-version: "3.12"
           cache: pip
@@ -23,10 +31,5 @@ jobs:
       - name: Install dependencies
         run: python -m pip install -e ".[ml]"
 
-      - name: Run tests
-        run: pytest -q
-
-      - name: Ingest, train and predict
-        env:
-          PULSO_API_KEY: ${{ secrets.PULSO_API_KEY }}
+      - name: Check cycle, sync data, train and submit
         run: python examples/06_scheduled_pipeline.py

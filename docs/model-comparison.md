@@ -74,6 +74,23 @@ una predicción por estación y envió las 12 predicciones con el modelo
 La clave se lee desde `.env`, que está excluido por `.gitignore` y no forma parte
 del repositorio.
 
+## Operación automática
+
+El workflow `.github/workflows/pulso-transmi-pipeline.yml` corre cada 10 minutos
+y también puede ejecutarse manualmente. Cada ejecución:
+
+1. consulta `GET /v1/forecast-cycles/current`;
+2. termina en verde si recibe `404 no_open_cycle`;
+3. descarga estaciones, observaciones, contexto y metadata solo con ciclo abierto;
+4. entrena el modelo con los datos sincronizados;
+5. envía el batch completo de targets con `Idempotency-Key` estable por ciclo;
+6. conserva en los logs el recibo de la API, sin mostrar la clave.
+
+El secreto `PULSO_API_KEY` se configura en **Settings > Secrets and variables >
+Actions**. Las ejecuciones programadas de GitHub Actions usan el workflow de la
+rama por defecto, por lo que esta rama debe integrarse a `main` para activar el
+cron en producción.
+
 ## Próximas comprobaciones
 
 - Repetir la validación con varias ventanas móviles.

@@ -28,6 +28,64 @@ def load_env_file() -> None:
             os.environ[key] = value.strip().strip('"').strip("'")
 
 
+def predict_targets(
+    observations: pd.DataFrame,
+    context: pd.DataFrame,
+    targets: list[dict[str, object]],
+    package: dict[str, object],
+) -> list[dict[str, object]]:
+    working_observations = observations.copy()
+    working_context = context.copy()
+    context_columns = [column for column in context.columns if column != "observed_at"]
+    latest_context = context.sort_values("observed_at").iloc[-1].copy()
+    values_by_key: dict[tuple[str, str], float] = {}
+
+    target_times = sorted({target["target_at"] for target in targets})
+    for target_at_text in target_times:
+        target_at = pd.Timestamp(target_at_text)
+        targets_at = [target for target in targets if target["target_at"] == target_at_text]
+        station_ids = [str(target["station_id"]) for target in targets_at]
+        target_context = pd.DataFrame(
+            [{"observed_at": target_at, **{column: latest_context[column] for column in context_columns}}]
+        )
+        context_for_prediction = pd.concat([working_context, target_context], ignore_index=True)
+        target_rows = pd.DataFrame(
+            {"observed_at": [target_at] * len(station_ids), "station_id": station_ids, "demand": [np.nan] * len(station_ids)}
+        )
+        featured = build_features(
+            pd.concat([working_observations, target_rows], ignore_index=True),
+            context_for_prediction,
+        )
+        prediction_rows = featured.loc[
+            (featured["observed_at"] == target_at) & featured["station_id"].isin(station_ids)
+        ].copy()
+        prediction_rows["station_code"] = prediction_rows["station_id"].map(package["station_codes"])
+        prediction_rows = prediction_rows.set_index("station_id").loc[station_ids]
+        values = np.maximum(
+            package.get("prediction_floor", 0.0),
+            package["model"].predict(prediction_rows[package["feature_columns"]]),
+        )
+        for station_id, value in zip(station_ids, values, strict=True):
+            values_by_key[(station_id, target_at_text)] = round(float(value), 3)
+        generated = target_rows.copy()
+        generated["demand"] = values
+        working_observations = pd.concat([working_observations, generated], ignore_index=True)
+        working_context = pd.concat([working_context, target_context], ignore_index=True)
+
+    predictions = [
+        {
+            "station_id": str(target["station_id"]),
+            "target_at": target["target_at"],
+            "value": values_by_key[(str(target["station_id"]), str(target["target_at"]))],
+        }
+        for target in targets
+    ]
+    expected_keys = [(str(target["station_id"]), str(target["target_at"])) for target in targets]
+    if len(predictions) != len(targets) or len(set(expected_keys)) != len(expected_keys):
+        raise RuntimeError("Los targets del ciclo contienen claves duplicadas o incompletas")
+    return predictions
+
+
 def main() -> None:
     load_env_file()
     api_key = os.environ.get("PULSO_API_KEY")
@@ -50,31 +108,11 @@ def main() -> None:
             parse_dates=["observed_at"],
         )
         context = pd.read_csv(DATA_DIR / "context.csv", parse_dates=["observed_at"])
-        target_at = pd.Timestamp(cycle["targets"][0]["target_at"])
-        station_ids = [target["station_id"] for target in cycle["targets"]]
-
-        latest_context = context.sort_values("observed_at").iloc[-1].copy()
-        target_context = pd.DataFrame(
-            [{"observed_at": target_at, **{column: latest_context[column] for column in context.columns if column != "observed_at"}}]
-        )
-        context_for_prediction = pd.concat([context, target_context], ignore_index=True)
-        target_rows = pd.DataFrame(
-            {"observed_at": [target_at] * len(station_ids), "station_id": station_ids, "demand": [np.nan] * len(station_ids)}
-        )
-        featured = build_features(pd.concat([observations, target_rows], ignore_index=True), context_for_prediction)
-        prediction_rows = featured.loc[
-            (featured["observed_at"] == target_at) & featured["station_id"].isin(station_ids)
-        ].copy()
-        prediction_rows["station_code"] = prediction_rows["station_id"].map(package["station_codes"])
-        prediction_rows = prediction_rows.set_index("station_id").loc[station_ids]
-        values = package["model"].predict(prediction_rows[package["feature_columns"]])
-        values = np.maximum(package.get("prediction_floor", 0.0), values)
-
-        predictions = [
-            {"station_id": station_id, "target_at": target["target_at"], "value": round(float(value), 3)}
-            for station_id, target, value in zip(station_ids, cycle["targets"], values, strict=True)
-        ]
-        client_run_id = f"extra-trees-{datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ')}"
+        targets = cycle["targets"]
+        if len(targets) != cycle["expected_predictions"]:
+            raise RuntimeError("La API publicó una cantidad de targets inconsistente")
+        predictions = predict_targets(observations, context, targets, package)
+        client_run_id = f"extra-trees-{cycle['cycle_id']}"
         payload = {
             "schema_version": "1.0",
             "cycle_id": cycle["cycle_id"],
