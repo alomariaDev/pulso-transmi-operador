@@ -6,13 +6,7 @@ periodo anterior. No se mezclan aleatoriamente observaciones de futuro y pasado.
 
 ## Variables
 
-- Rezagos de demanda de 15 minutos, 1 hora, 1 día y 7 días.
-- Promedios móviles de 1 hora y 1 día.
-- Desviación estándar móvil de 1 día.
-- Hora, cuarto de hora, día de semana y fin de semana.
-- Lluvia, pronóstico de lluvia, temperatura, pronóstico de temperatura e
   intensidad de eventos.
-- Identificador de estación codificado como variable categórica.
 
 Los rezagos y ventanas se calculan usando únicamente observaciones anteriores al
 instante que se predice, para evitar data leakage.
@@ -65,11 +59,6 @@ El script `examples/05_submit_predictions.py` consultó el ciclo abierto, gener�
 una predicción por estación y envió las 12 predicciones con el modelo
 `ExtraTreesRegressor`. El API aceptó oficialmente la submission:
 
-- Ciclo: `cyc_practice_20260918`
-- Submission: `sub_3f50d068a3df47b7966a5a58e28338c7`
-- Estado: `accepted`
-- Predicciones recibidas: 12 de 12
-- Submission oficial: sí
 
 La clave se lee desde `.env`, que está excluido por `.gitignore` y no forma parte
 del repositorio.
@@ -90,6 +79,15 @@ El secreto `PULSO_API_KEY` se configura en **Settings > Secrets and variables >
 Actions**. Las ejecuciones programadas de GitHub Actions usan el workflow de la
 rama por defecto, por lo que esta rama debe integrarse a `main` para activar el
 cron en producción.
+
+## Drift y continuidad operativa
+
+El workflow `.github/workflows/pulso-transmi-drift.yml` compara los últimos 7
+días contra los 7 días anteriores mediante PSI. Si alguna variable supera 0,20,
+reentrena automáticamente el modelo y publica `drift_report.json`, logs y el
+Joblib como artefactos de Actions. La inferencia continúa funcionando porque el
+workflow de submissions conserva su guardia de ciclo y entrena con los datos
+sincronizados antes de cada envío.
 
 ## Próximas comprobaciones
 

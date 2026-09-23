@@ -3,8 +3,7 @@ name: pulso-transmi-collector
 on:
   workflow_dispatch:
   schedule:
-    # GitHub Actions no admite intervalos de 2 minutos; 5 minutos es el mínimo práctico.
-    - cron: "*/5 * * * *"
+    - cron: "0 * * * *"
 
 concurrency:
   group: pulso-transmi-collector

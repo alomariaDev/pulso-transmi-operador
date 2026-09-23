@@ -81,6 +81,12 @@ API responde `404 no_open_cycle` y solo cuando hay ciclo abierto sincroniza,
 entrena y envía exactamente los targets publicados. `PULSO_API_KEY` debe existir
 únicamente como GitHub Actions Secret.
 
+La operación automática está separada en tres workflows: el colector carga datos
+cada hora, `pulso-transmi-pipeline` ejecuta inferencia y submissions cada 10
+minutos cuando existe un ciclo abierto, y `pulso-transmi-drift` monitorea drift
+cada hora. Si el PSI de una variable supera 0,20, el workflow deja un reporte,
+reentrena `ExtraTreesRegressor` y guarda el artefacto como evidencia.
+
 ## Datos iniciales
 
 | Recurso | Tamaño |
