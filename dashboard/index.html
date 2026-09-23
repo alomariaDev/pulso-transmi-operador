@@ -153,7 +153,7 @@
         </div>
         <div class="flex items-baseline space-x-2">
           <h2 id="kpi-stations" class="text-2xl sm:text-3xl font-extrabold text-white">12</h2>
-          <span class="text-xs font-semibold text-rose-400">4 Troncales</span>
+          <span class="text-xs font-semibold text-rose-400">7 Troncales</span>
         </div>
         <p class="text-xs text-slate-400 mt-1">Bogotá TransMilenio</p>
       </div>
@@ -182,23 +182,35 @@
         
         <!-- Left 2 Cols: Interactive Map -->
         <div class="lg:col-span-2 bg-slate-900/60 border border-slate-800/80 rounded-2xl p-4 sm:p-6 backdrop-blur-sm flex flex-col">
-          <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-4 gap-2">
+          <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-3 gap-2">
             <div>
               <h3 class="text-base font-bold text-white flex items-center space-x-2">
                 <i data-lucide="map" class="w-5 h-5 text-rose-500"></i>
-                <span>Mapa Geográfico de Estaciones</span>
+                <span>Mapa Geográfico de Estaciones (12 Estaciones)</span>
               </h3>
-              <p class="text-xs text-slate-400">Toca un marcador para ver detalles y series de tiempo</p>
+              <p class="text-xs text-slate-400">Toca un marcador en Bogotá para ver detalles y series de tiempo</p>
             </div>
-            <div class="flex items-center space-x-2">
+            <div class="flex items-center space-x-2 text-xs">
               <span class="w-2.5 h-2.5 rounded-full bg-rose-500 inline-block"></span>
-              <span class="text-xs text-slate-300">Mayor demanda</span>
+              <span class="text-slate-300">Alta demanda (&gt;400)</span>
               <span class="w-2.5 h-2.5 rounded-full bg-emerald-500 inline-block ml-2"></span>
-              <span class="text-xs text-slate-300">Menor demanda</span>
+              <span class="text-slate-300">Demanda moderada</span>
             </div>
           </div>
+
+          <!-- Troncales Filter Bar -->
+          <div class="flex items-center space-x-1.5 overflow-x-auto pb-2 mb-3 scrollbar-none" id="corridor-filters">
+            <button onclick="filterCorridor('ALL')" class="corridor-chip active px-2.5 py-1 rounded-lg text-xs font-medium bg-brand-600 text-white transition whitespace-nowrap" data-corridor="ALL">Todas las Troncales (12)</button>
+            <button onclick="filterCorridor('NQS')" class="corridor-chip px-2.5 py-1 rounded-lg text-xs font-medium bg-slate-800 text-slate-300 hover:text-white transition whitespace-nowrap" data-corridor="NQS">NQS (3)</button>
+            <button onclick="filterCorridor('Caracas')" class="corridor-chip px-2.5 py-1 rounded-lg text-xs font-medium bg-slate-800 text-slate-300 hover:text-white transition whitespace-nowrap" data-corridor="Caracas">Caracas (2)</button>
+            <button onclick="filterCorridor('Américas')" class="corridor-chip px-2.5 py-1 rounded-lg text-xs font-medium bg-slate-800 text-slate-300 hover:text-white transition whitespace-nowrap" data-corridor="Américas">Américas (2)</button>
+            <button onclick="filterCorridor('Calle 26')" class="corridor-chip px-2.5 py-1 rounded-lg text-xs font-medium bg-slate-800 text-slate-300 hover:text-white transition whitespace-nowrap" data-corridor="Calle 26">Calle 26 (2)</button>
+            <button onclick="filterCorridor('Autonorte')" class="corridor-chip px-2.5 py-1 rounded-lg text-xs font-medium bg-slate-800 text-slate-300 hover:text-white transition whitespace-nowrap" data-corridor="Autonorte">Autonorte (1)</button>
+            <button onclick="filterCorridor('Suba')" class="corridor-chip px-2.5 py-1 rounded-lg text-xs font-medium bg-slate-800 text-slate-300 hover:text-white transition whitespace-nowrap" data-corridor="Suba">Suba (1)</button>
+            <button onclick="filterCorridor('Carrera 7-10')" class="corridor-chip px-2.5 py-1 rounded-lg text-xs font-medium bg-slate-800 text-slate-300 hover:text-white transition whitespace-nowrap" data-corridor="Carrera 7-10">Carrera 7-10 (1)</button>
+          </div>
           
-          <!-- Leaflet Map Container -->
+          <!-- Leaflet Map Container (100% Free OpenStreetMap Tiles, NO API Key needed) -->
           <div id="map" class="w-full h-72 sm:h-96 rounded-xl border border-slate-800/80 z-10"></div>
         </div>
 
@@ -207,30 +219,30 @@
           <div>
             <div class="flex items-center justify-between border-b border-slate-800 pb-3 mb-4">
               <span class="text-xs font-semibold text-brand-500 uppercase tracking-wider">Estación Seleccionada</span>
-              <span id="st-badge" class="px-2 py-0.5 rounded text-xs font-mono bg-slate-800 text-slate-300 border border-slate-700">ID: 07107</span>
+              <span id="st-badge" class="px-2 py-0.5 rounded text-xs font-mono bg-slate-800 text-slate-300 border border-slate-700">ID: 07111</span>
             </div>
 
             <!-- Station Selector Dropdown -->
             <label class="block text-xs font-medium text-slate-400 mb-1">Cambiar Estación:</label>
             <select id="station-select" class="w-full bg-slate-800/90 border border-slate-700 text-white rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 mb-4 transition">
-              <!-- Options populated by JS -->
+              <!-- Options populated dynamically -->
             </select>
 
             <h4 id="st-name" class="text-lg font-bold text-white mb-1">Ricaurte - NQS</h4>
             <p id="st-corridor" class="text-xs text-slate-400 mb-4 flex items-center space-x-1">
               <i data-lucide="git-commit" class="w-3.5 h-3.5 text-slate-500"></i>
-              <span>Troncal NQS Central</span>
+              <span>Troncal: NQS</span>
             </p>
 
             <div class="grid grid-cols-2 gap-3 mb-4">
               <div class="bg-slate-800/50 border border-slate-700/50 rounded-xl p-3">
                 <span class="text-xs text-slate-400 block">Demanda Media</span>
-                <span id="st-mean" class="text-lg font-extrabold text-white">482.6</span>
+                <span id="st-mean" class="text-lg font-extrabold text-white">683.7</span>
                 <span class="text-[10px] text-slate-400 block">pasajeros / 15m</span>
               </div>
               <div class="bg-slate-800/50 border border-slate-700/50 rounded-xl p-3">
                 <span class="text-xs text-slate-400 block">Demanda Pico</span>
-                <span id="st-max" class="text-lg font-extrabold text-rose-400">1,240.0</span>
+                <span id="st-max" class="text-lg font-extrabold text-rose-400">1,840.0</span>
                 <span class="text-[10px] text-slate-400 block">07:00 / 18:00</span>
               </div>
             </div>
@@ -318,7 +330,7 @@
               </tr>
             </thead>
             <tbody id="models-table-body" class="divide-y divide-slate-800/60">
-              <!-- Populated by JS -->
+              <!-- Populated dynamically -->
             </tbody>
           </table>
         </div>
@@ -400,7 +412,7 @@
         </div>
 
         <div id="drift-cards-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          <!-- Populated by JS -->
+          <!-- Populated dynamically -->
         </div>
 
         <div class="mt-6 p-4 rounded-xl bg-slate-800/40 border border-slate-700/50 flex items-start space-x-3">
@@ -434,6 +446,8 @@
     </button>
   </nav>
 
+  <!-- Bundled Synchronous Data (guarantees all 12 stations without CORS/network issues) -->
+  <script src="data.js"></script>
   <!-- App Script -->
   <script src="app.js"></script>
 </body>

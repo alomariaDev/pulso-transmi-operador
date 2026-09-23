@@ -1,8 +1,9 @@
 // Global Data State
 let appData = null;
-let currentStationId = "07107";
+let currentStationId = "07111"; // Ricaurte - NQS (Highest demand)
 let mapInstance = null;
 let markers = {};
+let activeCorridor = "ALL";
 
 // Chart Instances
 let miniHourlyChart = null;
@@ -12,12 +13,12 @@ let dailyTrendChart = null;
 // Initialize when DOM is ready
 document.addEventListener("DOMContentLoaded", async () => {
   // Initialize Lucide Icons
-  lucide.createIcons();
+  if (window.lucide) lucide.createIcons();
 
   // Setup Theme Toggle
   setupThemeToggle();
 
-  // Load Data
+  // Load Data (From synchronous data.js or fetch fallback)
   await loadDashboardData();
 
   // Initialize Map
@@ -33,14 +34,17 @@ document.addEventListener("DOMContentLoaded", async () => {
 
 // Load Dashboard Data
 async function loadDashboardData() {
-  try {
-    const res = await fetch("data/summary_data.json");
-    if (!res.ok) throw new Error("HTTP error " + res.status);
-    appData = await res.json();
-  } catch (err) {
-    console.warn("Could not load summary_data.json via fetch, using fallback data:", err);
-    // Provide robust fallback in case of local file:// execution without http server
-    appData = getFallbackData();
+  if (window.PULSO_DASHBOARD_DATA) {
+    appData = window.PULSO_DASHBOARD_DATA;
+  } else {
+    try {
+      const res = await fetch("data/summary_data.json");
+      if (res.ok) {
+        appData = await res.json();
+      }
+    } catch (err) {
+      console.warn("Using inline fallback data", err);
+    }
   }
 
   // Update KPIs
@@ -55,10 +59,10 @@ async function loadDashboardData() {
 // Setup Theme Toggle
 function setupThemeToggle() {
   const toggleBtn = document.getElementById("theme-toggle");
+  if (!toggleBtn) return;
   toggleBtn.addEventListener("click", () => {
     document.documentElement.classList.toggle("dark");
-    lucide.createIcons();
-    // Refresh charts if needed
+    if (window.lucide) lucide.createIcons();
     if (timeSeriesChart) timeSeriesChart.update();
     if (dailyTrendChart) dailyTrendChart.update();
     if (miniHourlyChart) miniHourlyChart.update();
@@ -71,7 +75,6 @@ function switchTab(tabId) {
   const models = document.getElementById("tab-content-models");
   const drift = document.getElementById("tab-content-drift");
 
-  // Reset tab buttons
   document.querySelectorAll(".tab-btn, .mobile-nav-btn").forEach(btn => {
     if (btn.dataset.tab === tabId) {
       btn.classList.add("active", "text-brand-500", "bg-slate-800/80");
@@ -90,7 +93,7 @@ function switchTab(tabId) {
       document.getElementById("map").scrollIntoView({ behavior: "smooth" });
     }
     if (mapInstance) {
-      setTimeout(() => mapInstance.invalidateSize(), 200);
+      setTimeout(() => mapInstance.invalidateSize(), 250);
     }
   } else if (tabId === "models") {
     overview.classList.add("hidden");
@@ -103,26 +106,73 @@ function switchTab(tabId) {
   }
 }
 
-// Initialize Leaflet Map
+// Corridor Filter Handler
+function filterCorridor(corridor) {
+  activeCorridor = corridor;
+
+  // Update button styles
+  document.querySelectorAll(".corridor-chip").forEach(chip => {
+    if (chip.dataset.corridor === corridor) {
+      chip.classList.add("bg-brand-600", "text-white");
+      chip.classList.remove("bg-slate-800", "text-slate-300");
+    } else {
+      chip.classList.remove("bg-brand-600", "text-white");
+      chip.classList.add("bg-slate-800", "text-slate-300");
+    }
+  });
+
+  // Filter Select Options
+  renderStationsSelect();
+
+  // Show/Hide Markers on Map
+  if (appData && appData.stations && mapInstance) {
+    const visibleCoords = [];
+    appData.stations.forEach(st => {
+      const marker = markers[st.station_id];
+      if (!marker) return;
+      if (corridor === "ALL" || st.corridor === corridor) {
+        if (!mapInstance.hasLayer(marker)) marker.addTo(mapInstance);
+        visibleCoords.push([st.latitude, st.longitude]);
+      } else {
+        if (mapInstance.hasLayer(marker)) mapInstance.removeLayer(marker);
+      }
+    });
+
+    if (visibleCoords.length > 0) {
+      const bounds = L.latLngBounds(visibleCoords);
+      mapInstance.fitBounds(bounds, { padding: [30, 30], maxZoom: 13 });
+    }
+  }
+
+  // Select first available station in this corridor
+  const availableStations = appData.stations.filter(s => corridor === "ALL" || s.corridor === corridor);
+  if (availableStations.length > 0 && !availableStations.find(s => s.station_id === currentStationId)) {
+    updateStationSpotlight(availableStations[0].station_id);
+  }
+}
+
+// Initialize Leaflet Map (100% Free OpenStreetMap - ZERO API Keys Required)
 function initMap() {
   const mapElement = document.getElementById("map");
   if (!mapElement || !appData || !appData.stations) return;
 
-  // Center on Bogota TransMilenio core
+  // Center on Bogota TransMilenio coverage
   mapInstance = L.map("map", {
-    center: [4.635, -74.105],
+    center: [4.648, -74.095],
     zoom: 11,
     zoomControl: true,
     scrollWheelZoom: false
   });
 
-  // Dark Tiles (CartoDB DarkMatter)
-  L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", {
-    attribution: '&copy; <a href="https://carto.com/">CARTO</a>, TransMilenio',
+  // 100% OpenStreetMap Standard Tiles (No token or API key required)
+  L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors | TransMilenio',
     maxZoom: 19
   }).addTo(mapInstance);
 
-  // Add station markers
+  const allLatLngs = [];
+
+  // Add all 12 station markers
   appData.stations.forEach(st => {
     const isHighDemand = st.mean_demand > 400;
     const color = isHighDemand ? "#f43f5e" : "#10b981";
@@ -130,9 +180,9 @@ function initMap() {
     const customIcon = L.divIcon({
       className: "custom-station-icon",
       html: `
-        <div class="relative flex items-center justify-center">
-          <span class="animate-ping absolute inline-flex h-full w-full rounded-full opacity-75" style="background-color: ${color}"></span>
-          <span class="relative inline-flex rounded-full h-4 w-4 border-2 border-white shadow-md" style="background-color: ${color}"></span>
+        <div class="relative flex items-center justify-center cursor-pointer" title="${st.station_name} (${st.corridor})">
+          <span class="animate-ping absolute inline-flex h-5 w-5 rounded-full opacity-60" style="background-color: ${color}"></span>
+          <span class="relative inline-flex rounded-full h-4 w-4 border-2 border-white shadow-lg" style="background-color: ${color}"></span>
         </div>
       `,
       iconSize: [16, 16],
@@ -142,12 +192,18 @@ function initMap() {
     const marker = L.marker([st.latitude, st.longitude], { icon: customIcon }).addTo(mapInstance);
 
     marker.bindPopup(`
-      <div class="p-1 text-slate-900">
+      <div class="p-1 min-w-[160px]">
+        <span class="text-[10px] font-bold uppercase tracking-wider text-rose-500 block">Troncal ${st.corridor}</span>
         <h4 class="font-bold text-sm text-slate-900">${st.station_name}</h4>
-        <p class="text-xs text-slate-600">Troncal: ${st.corridor}</p>
-        <div class="mt-1 pt-1 border-t border-slate-200 text-xs flex justify-between">
-          <span>Demanda Media:</span>
-          <b class="text-rose-600">${st.mean_demand}</b>
+        <div class="mt-2 pt-1.5 border-t border-slate-200 text-xs space-y-1">
+          <div class="flex justify-between">
+            <span class="text-slate-600">Demanda Media:</span>
+            <b class="text-rose-600 font-mono">${st.mean_demand}</b>
+          </div>
+          <div class="flex justify-between">
+            <span class="text-slate-600">Demanda Pico:</span>
+            <b class="text-slate-900 font-mono">${st.max_demand}</b>
+          </div>
         </div>
       </div>
     `);
@@ -158,7 +214,13 @@ function initMap() {
     });
 
     markers[st.station_id] = marker;
+    allLatLngs.push([st.latitude, st.longitude]);
   });
+
+  // Auto-fit all 12 stations into map view
+  if (allLatLngs.length > 0) {
+    mapInstance.fitBounds(L.latLngBounds(allLatLngs), { padding: [25, 25] });
+  }
 }
 
 // Render Station Selector Options
@@ -166,15 +228,17 @@ function renderStationsSelect() {
   const select = document.getElementById("station-select");
   if (!select || !appData || !appData.stations) return;
 
-  select.innerHTML = appData.stations.map(st => `
+  const filteredStations = appData.stations.filter(s => activeCorridor === "ALL" || s.corridor === activeCorridor);
+
+  select.innerHTML = filteredStations.map(st => `
     <option value="${st.station_id}" ${st.station_id === currentStationId ? "selected" : ""}>
-      ${st.station_name} (${st.corridor})
+      ${st.station_name} — Troncal ${st.corridor}
     </option>
   `).join("");
 
-  select.addEventListener("change", (e) => {
+  select.onchange = (e) => {
     updateStationSpotlight(e.target.value);
-  });
+  };
 }
 
 // Update Station Details & Charts
@@ -186,15 +250,15 @@ function updateStationSpotlight(stationId) {
   document.getElementById("st-name").textContent = st.station_name;
   document.getElementById("st-corridor").innerHTML = `
     <i data-lucide="git-commit" class="w-3.5 h-3.5 text-slate-500"></i>
-    <span>Troncal: ${st.corridor}</span>
+    <span>Troncal: <b>${st.corridor}</b></span>
   `;
   document.getElementById("st-mean").textContent = st.mean_demand.toLocaleString();
   document.getElementById("st-max").textContent = st.max_demand.toLocaleString();
-  document.getElementById("ts-station-name").textContent = st.station_name;
+  document.getElementById("ts-station-name").textContent = `${st.station_name} (Troncal ${st.corridor})`;
 
-  lucide.createIcons();
+  if (window.lucide) lucide.createIcons();
 
-  // Center map on station
+  // Center map on selected station
   if (mapInstance && st.latitude && st.longitude) {
     mapInstance.panTo([st.latitude, st.longitude], { animate: true, duration: 0.8 });
     if (markers[stationId]) {
@@ -423,38 +487,10 @@ function renderDriftCards() {
           <span>PSI Calculado: <b class="text-slate-200 font-mono">${d.psi.toFixed(3)}</b></span>
           <span>Umbral: 0.20</span>
         </div>
-        <!-- Progress Bar -->
         <div class="w-full bg-slate-700/60 rounded-full h-2 overflow-hidden">
           <div class="bg-emerald-400 h-2 rounded-full transition-all duration-500" style="width: ${(d.psi / d.threshold) * 100}%"></div>
         </div>
       </div>
     </div>
   `).join("");
-}
-
-// Fallback Data in case summary_data.json cannot be fetched
-function getFallbackData() {
-  return {
-    metadata: {
-      accuracy: 87.21,
-      wape: 0.1279,
-      total_stations: 12,
-      total_observations: 51840,
-      active_model: "ExtraTreesRegressor"
-    },
-    stations: [
-      { station_id: "07107", station_name: "Ricaurte - NQS", corridor: "NQS Central", latitude: 4.615, longitude: -74.098, mean_demand: 482.6, max_demand: 1240, hourly_curve: [20, 15, 10, 8, 45, 180, 520, 890, 710, 480, 410, 390, 440, 460, 490, 560, 780, 940, 850, 520, 310, 190, 95, 40] },
-      { station_id: "02000", station_name: "Portal Norte", corridor: "Autopista Norte", latitude: 4.755, longitude: -74.045, mean_demand: 430.1, max_demand: 1120, hourly_curve: [18, 12, 8, 15, 60, 220, 680, 950, 620, 420, 380, 360, 400, 420, 450, 510, 690, 880, 760, 480, 280, 160, 80, 35] }
-    ],
-    daily_trend: [],
-    models_leaderboard: [
-      { rank: 1, model_name: "ExtraTreesRegressor", wape: 0.1279, accuracy: 87.21, training_time: "12.4s", features_count: 17, status: "Activo en Producción", color: "emerald" },
-      { rank: 2, model_name: "HistGradientBoostingRegressor", wape: 0.1298, accuracy: 87.02, training_time: "8.1s", features_count: 17, status: "Evaluado", color: "blue" }
-    ],
-    drift_metrics: [
-      { feature: "demand_lag_15m", category: "Autocorrelación", psi: 0.042, status: "Estable", threshold: 0.20 },
-      { feature: "temperature_c", category: "Clima", psi: 0.071, status: "Estable", threshold: 0.20 }
-    ],
-    timeline_series: {}
-  };
 }
