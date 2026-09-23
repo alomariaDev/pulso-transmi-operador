@@ -105,7 +105,7 @@ def collect(
 def main() -> None:
     api_url = os.getenv("PULSO_API_URL", "https://pulso-transmi.72-60-245-2.sslip.io")
     api_key = os.getenv("PULSO_API_KEY")
-    database_url = os.getenv("SUPABASE_DB_URL")
+    database_url = os.getenv("SUPABASE_DB_URL", "").strip()
     if not api_key:
         raise RuntimeError("PULSO_API_KEY no está configurada")
     if not database_url:
