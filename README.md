@@ -77,7 +77,8 @@ observaciones liberadas del stream; luego actualiza las tablas `pulso.stations`,
 `SUPABASE_DB_URL` en el entorno.
 
 El workflow [`pulso-transmi-pipeline.yml`](.github/workflows/pulso-transmi-pipeline.yml)
-despierta cada 5 minutos y termina rápido cuando no hay ciclo abierto. El cron
+despierta cada 5 minutos, desplazado dos minutos respecto al inicio de la hora,
+y termina rápido cuando no hay ciclo abierto. El cron
 no decide si se envía una predicción: el
 workflow consulta `GET /v1/forecast-cycles/current`, termina en verde cuando la
 API responde `404 no_open_cycle` y solo cuando hay ciclo abierto sincroniza,
