@@ -17,6 +17,7 @@ jobs:
       contents: read
     env:
       PULSO_API_KEY: ${{ secrets.PULSO_API_KEY }}
+      SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
 
     steps:
       - name: Checkout
@@ -51,6 +52,10 @@ jobs:
             echo
             echo '```json'
             cat artifacts/drift_report.json 2>/dev/null || echo '{}'
+            echo
+            echo '### Accuracy por horizonte (15, 30, 45 y 60 min)'
+            echo '```json'
+            cat artifacts/accuracy_report.json 2>/dev/null || echo '{}'
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
 
@@ -61,6 +66,7 @@ jobs:
           name: drift-report-${{ github.run_id }}
           path: |
             artifacts/drift_report.json
+            artifacts/accuracy_report.json
             drift.log
             artifacts/extra_trees_demand.joblib
           if-no-files-found: ignore

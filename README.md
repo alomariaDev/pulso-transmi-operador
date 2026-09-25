@@ -94,6 +94,14 @@ cada hora, `pulso-transmi-pipeline` ejecuta inferencia y submissions cada 5
 minutos cuando existe un ciclo abierto, y `pulso-transmi-drift` monitorea drift
 cada hora. Si el PSI de una variable supera 0,20, el workflow deja un reporte,
 reentrena `ExtraTreesRegressor` y guarda el artefacto como evidencia.
+El workflow de drift compara las predicciones ya enviadas con las observaciones
+reales en Supabase para los horizontes de 15, 30, 45 y 60 minutos. Guarda WAPE,
+accuracy (`100 × max(0, 1 − WAPE)`), cobertura y PSI en
+`pulso.training_runs`/`pulso.data_quality_checks`; también publica
+`accuracy_report.json` como resumen de la ejecución. El workflow de predicción
+registra cada submission en `pulso.predictions`, enlazada a su ciclo y modelo.
+Ambos workflows necesitan el secret `SUPABASE_DB_URL` además de
+`PULSO_API_KEY`.
 
 ## Datos iniciales
 

@@ -10,6 +10,7 @@ import httpx
 import joblib
 import numpy as np
 import pandas as pd
+import psycopg
 
 from model_features import build_features
 
@@ -17,6 +18,8 @@ from model_features import build_features
 BASE_URL = os.getenv("PULSO_API_URL", "https://pulso-transmi.72-60-245-2.sslip.io").rstrip("/")
 DATA_DIR = Path("data")
 MODEL_PATH = Path("artifacts/extra_trees_demand.joblib")
+MODEL_ID = "extra_trees_regressor_v1"
+FEATURE_VERSION = "lag_features_v1"
 
 
 def load_env_file() -> None:
@@ -80,6 +83,115 @@ def predict_targets(
     return predictions
 
 
+def persist_submission(
+    cycle: dict[str, object],
+    package: dict[str, object],
+    predictions: list[dict[str, object]],
+    submission: dict[str, object],
+    submission_state: str,
+) -> None:
+    database_url = os.getenv("SUPABASE_DB_URL", "").strip()
+    if not database_url:
+        print("SUPABASE_DB_URL no está configurada; no se persistieron las predicciones.")
+        return
+
+    cycle_id = str(cycle["cycle_id"])
+    run_id = f"extra-trees-{cycle_id}"
+    cutoff_id = cycle_id
+    cutoff_at = pd.Timestamp(str(cycle["data_cutoff"])).to_pydatetime()
+    train_start = pd.Timestamp(str(package["data_start"])).to_pydatetime()
+    training_data_end = pd.Timestamp(str(package["data_end"])).to_pydatetime()
+    trained_at = datetime.fromtimestamp(MODEL_PATH.stat().st_mtime, timezone.utc)
+    finished_at = datetime.now(timezone.utc)
+    code_commit = os.getenv("GITHUB_SHA", "local")
+    run_metrics = {
+        "cycle_id": cycle_id,
+        "submission_state": submission_state,
+        "submission": submission,
+        "expected_predictions": len(cycle["targets"]),
+        "persisted_predictions": len(predictions),
+        "data_cutoff": str(cycle["data_cutoff"]),
+    }
+    hyperparameters = json.dumps(package.get("parameters", {}), default=str)
+    metrics = json.dumps(run_metrics, ensure_ascii=False, default=str)
+
+    prediction_by_key = {
+        (str(row["station_id"]), str(row["target_at"])): float(row["value"])
+        for row in predictions
+    }
+    prediction_rows = [
+        (
+            run_id,
+            str(target["station_id"]),
+            pd.Timestamp(str(target["target_at"])).to_pydatetime(),
+            int(target["horizon_minutes"]),
+            prediction_by_key[(str(target["station_id"]), str(target["target_at"]))],
+        )
+        for target in cycle["targets"]
+    ]
+
+    with psycopg.connect(database_url, prepare_threshold=None) as connection:
+        with connection.cursor() as cursor:
+            cursor.execute(
+                """
+                insert into pulso.model_versions
+                    (model_id, algorithm, feature_version, code_commit, hyperparameters)
+                values (%s, %s, %s, %s, %s::jsonb)
+                on conflict (model_id) do nothing
+                """,
+                (MODEL_ID, "ExtraTreesRegressor", FEATURE_VERSION, code_commit, hyperparameters),
+            )
+            cursor.execute(
+                """
+                insert into pulso.data_cutoffs
+                    (cutoff_id, cutoff_at, train_start, validation_start,
+                     validation_end, split_strategy)
+                values (%s, %s, %s, %s, %s, %s)
+                on conflict (cutoff_id) do nothing
+                """,
+                (
+                    cutoff_id,
+                    cutoff_at,
+                    train_start,
+                    training_data_end,
+                    training_data_end,
+                    "competition_full_history_until_cutoff",
+                ),
+            )
+            cursor.execute(
+                """
+                insert into pulso.training_runs
+                    (run_id, model_id, cutoff_id, status, started_at, finished_at,
+                     train_rows, validation_rows, metrics)
+                values (%s, %s, %s, 'succeeded', %s, %s, %s, 0, %s::jsonb)
+                on conflict (run_id) do nothing
+                """,
+                (
+                    run_id,
+                    MODEL_ID,
+                    cutoff_id,
+                    trained_at,
+                    finished_at,
+                    int(package.get("training_rows", 0)),
+                    metrics,
+                ),
+            )
+            cursor.executemany(
+                """
+                insert into pulso.predictions
+                    (run_id, station_id, target_at, horizon, y_pred)
+                values (%s, %s, %s, %s, %s)
+                on conflict (run_id, station_id, target_at, horizon) do nothing
+                """,
+                prediction_rows,
+            )
+        connection.commit()
+    print(
+        f"Predicciones guardadas en Supabase: run_id={run_id}, "
+        f"count={len(prediction_rows)}, state={submission_state}"
+    )
+
+
 def main(expected_cycle_id: str | None = None) -> None:
     load_env_file()
     api_key = os.environ.get("PULSO_API_KEY")
@@ -134,6 +246,13 @@ def main(expected_cycle_id: str | None = None) -> None:
         if response.status_code == 409:
             detail = response.json().get("detail", {})
             if isinstance(detail, dict) and detail.get("code") == "idempotency_conflict":
+                persist_submission(
+                    cycle,
+                    package,
+                    predictions,
+                    {"status": "already_submitted"},
+                    "already_submitted",
+                )
                 print(
                     json.dumps(
                         {
@@ -149,6 +268,7 @@ def main(expected_cycle_id: str | None = None) -> None:
             raise RuntimeError(f"Submission rejected ({response.status_code}): {response.text}")
         response.raise_for_status()
         result = response.json()
+        persist_submission(cycle, package, predictions, result, "accepted")
         print(json.dumps({"cycle_id": cycle["cycle_id"], "submission": result, "prediction_count": len(predictions)}, indent=2))
 
 

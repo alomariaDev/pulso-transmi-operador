@@ -17,6 +17,7 @@ jobs:
       contents: read
     env:
       PULSO_API_KEY: ${{ secrets.PULSO_API_KEY }}
+      SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
 
     steps:
       - name: Checkout
