@@ -26,11 +26,6 @@ FEATURE_COLUMNS = [
     "quarter_hour",
     "weekday",
     "is_weekend",
-    "rain_mm",
-    "rain_forecast",
-    "temperature_c",
-    "temperature_forecast",
-    "event_intensity",
 ]
 
 
@@ -41,7 +36,8 @@ def main() -> None:
         parse_dates=["observed_at"],
     )
     context = pd.read_csv(DATA_DIR / "context.csv", parse_dates=["observed_at"])
-    featured = build_features(observations, context).dropna().reset_index(drop=True)
+    featured = build_features(observations, context)
+    featured = featured.dropna(subset=[*FEATURE_COLUMNS, "demand"]).reset_index(drop=True)
     station_values = sorted(observations["station_id"].dropna().unique().tolist())
     station_codes = {station_id: code for code, station_id in enumerate(station_values)}
     featured["station_code"] = featured["station_id"].map(station_codes)

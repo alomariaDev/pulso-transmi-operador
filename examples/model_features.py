@@ -4,8 +4,20 @@ import pandas as pd
 
 
 def build_features(observations: pd.DataFrame, context: pd.DataFrame) -> pd.DataFrame:
-    frame = observations.sort_values(["station_id", "observed_at"]).copy()
+    frame = observations.copy()
     frame["observed_at"] = pd.to_datetime(frame["observed_at"], utc=True)
+    frame["station_id"] = frame["station_id"].astype("string")
+    frame = frame.sort_values(["station_id", "observed_at"]).reset_index(drop=True)
+    if frame.duplicated(["station_id", "observed_at"]).any():
+        raise ValueError("Hay observaciones duplicadas por estación y timestamp")
+    for station_id, station_rows in frame.groupby("station_id", sort=False):
+        gaps = station_rows["observed_at"].diff().dropna()
+        if not gaps.eq(pd.Timedelta(minutes=15)).all():
+            first_gap = gaps.loc[gaps.ne(pd.Timedelta(minutes=15))].index[0]
+            timestamp = frame.loc[first_gap, "observed_at"].isoformat()
+            raise ValueError(
+                f"La serie de {station_id} tiene un hueco o intervalo inválido cerca de {timestamp}"
+            )
     context = context.copy()
     context["observed_at"] = pd.to_datetime(context["observed_at"], utc=True)
     frame = frame.merge(context, on="observed_at", how="left", validate="many_to_one")

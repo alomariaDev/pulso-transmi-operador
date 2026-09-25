@@ -93,6 +93,15 @@ class PulsoTransmiClient:
         params = {"start": start, "end": end, "cursor": cursor, "limit": limit}
         return self._get("/v1/context", params={key: value for key, value in params.items() if value is not None}).json()
 
+    def stream_observations_page(
+        self, *, cursor: str | None = None, limit: int = 5000
+    ) -> dict[str, Any]:
+        params = {"cursor": cursor, "limit": limit}
+        return self._get(
+            "/v1/stream/observations",
+            params={key: value for key, value in params.items() if value is not None},
+        ).json()
+
     def _all_pages(self, endpoint: str, params: dict[str, Any]) -> Iterator[dict[str, Any]]:
         cursor = None
         seen: set[str] = set()
@@ -139,6 +148,34 @@ class PulsoTransmiClient:
         if not frame.empty:
             frame["observed_at"] = pd.to_datetime(frame["observed_at"], utc=True)
         return frame
+
+    def stream_observations_dataframe(
+        self,
+        *,
+        end: str | None = None,
+        released_by: str | None = None,
+        page_size: int = 5000,
+    ) -> pd.DataFrame:
+        rows = self._all_pages(
+            "/v1/stream/observations", {"limit": page_size}
+        )
+        frame = pd.DataFrame(rows)
+        if frame.empty:
+            return pd.DataFrame(columns=["observed_at", "station_id", "demand"])
+        frame["observed_at"] = pd.to_datetime(frame["observed_at"], utc=True)
+        frame["station_id"] = frame["station_id"].astype("string")
+        if released_by is not None:
+            if "released_at" not in frame:
+                raise PulsoTransmiError(
+                    "stream response is missing required released_at timestamps"
+                )
+            release_cutoff = pd.to_datetime(released_by, utc=True)
+            frame["released_at"] = pd.to_datetime(frame["released_at"], utc=True)
+            frame = frame.loc[frame["released_at"] <= release_cutoff]
+        if end is not None:
+            cutoff = pd.to_datetime(end, utc=True)
+            frame = frame.loc[frame["observed_at"] <= cutoff]
+        return frame[["observed_at", "station_id", "demand"]].reset_index(drop=True)
 
     def download(self, filename: str, destination: str | Path) -> Path:
         allowed = {"stations.csv", "observations.csv", "context.csv", "metadata.json"}

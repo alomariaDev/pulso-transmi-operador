@@ -8,6 +8,8 @@ import pandas as pd
 from sklearn.ensemble import ExtraTreesRegressor, HistGradientBoostingRegressor, RandomForestRegressor
 from sklearn.metrics import mean_absolute_error
 
+from model_features import build_features
+
 
 DATA_DIR = Path("data")
 ARTIFACT_DIR = Path("artifacts")
@@ -20,24 +22,6 @@ def wape(actual: pd.Series, prediction: np.ndarray) -> float:
     return float(np.abs(actual.to_numpy() - prediction).sum() / denominator)
 
 
-def build_features(observations: pd.DataFrame, context: pd.DataFrame) -> pd.DataFrame:
-    frame = observations.sort_values(["station_id", "observed_at"]).copy()
-    frame = frame.merge(context, on="observed_at", how="left", validate="many_to_one")
-    grouped_demand = frame.groupby("station_id")["demand"]
-    for periods, name in ((1, "lag_15m"), (4, "lag_1h"), (96, "lag_1d"), (672, "lag_7d")):
-        frame[name] = grouped_demand.shift(periods)
-    shifted = grouped_demand.shift(1)
-    frame["rolling_mean_1h"] = shifted.groupby(frame["station_id"]).transform(lambda values: values.rolling(4, min_periods=4).mean())
-    frame["rolling_mean_1d"] = shifted.groupby(frame["station_id"]).transform(lambda values: values.rolling(96, min_periods=96).mean())
-    frame["rolling_std_1d"] = shifted.groupby(frame["station_id"]).transform(lambda values: values.rolling(96, min_periods=96).std())
-    frame["hour"] = frame["observed_at"].dt.hour
-    frame["quarter_hour"] = frame["observed_at"].dt.minute // 15
-    frame["weekday"] = frame["observed_at"].dt.dayofweek
-    frame["is_weekend"] = (frame["weekday"] >= 5).astype(int)
-    frame["station_code"] = frame["station_id"].astype("category").cat.codes
-    return frame
-
-
 def accuracy(wape_value: float) -> float:
     return max(0.0, 100.0 * (1.0 - wape_value))
 
@@ -45,16 +29,16 @@ def accuracy(wape_value: float) -> float:
 def main() -> None:
     observations = pd.read_csv(DATA_DIR / "observations.csv", dtype={"station_id": "string"}, parse_dates=["observed_at"])
     context = pd.read_csv(DATA_DIR / "context.csv", parse_dates=["observed_at"])
-    frame = build_features(observations, context).dropna().reset_index(drop=True)
-    cutoff = frame["observed_at"].max() - timedelta(days=7)
-    train = frame.loc[frame["observed_at"] <= cutoff].copy()
-    validation = frame.loc[frame["observed_at"] > cutoff].copy()
+    frame = build_features(observations, context)
     feature_columns = [
         "station_code", "lag_15m", "lag_1h", "lag_1d", "lag_7d",
         "rolling_mean_1h", "rolling_mean_1d", "rolling_std_1d",
         "hour", "quarter_hour", "weekday", "is_weekend",
-        "rain_mm", "rain_forecast", "temperature_c", "temperature_forecast", "event_intensity",
     ]
+    frame = frame.dropna(subset=[*feature_columns, "demand"]).reset_index(drop=True)
+    cutoff = frame["observed_at"].max() - timedelta(days=7)
+    train = frame.loc[frame["observed_at"] <= cutoff].copy()
+    validation = frame.loc[frame["observed_at"] > cutoff].copy()
     x_train, y_train = train[feature_columns], train["demand"]
     x_validation, y_validation = validation[feature_columns], validation["demand"]
     models = {

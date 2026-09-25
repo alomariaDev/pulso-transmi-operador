@@ -1,12 +1,15 @@
 # Comparación inicial de modelos
 
-La comparación se ejecutó sobre los datos descargados del API el 18 de septiembre
-de 2026. La validación usa los últimos 7 días y el entrenamiento usa todo el
-periodo anterior. No se mezclan aleatoriamente observaciones de futuro y pasado.
+La comparación se ejecutó sobre el corte inicial descargado del API el 25 de
+septiembre de 2026. La validación usa los últimos 7 días y el entrenamiento usa
+todo el periodo anterior. No se mezclan aleatoriamente observaciones de futuro y
+pasado.
 
 ## Variables
 
-  intensidad de eventos.
+El candidato usa rezagos de demanda, ventanas móviles, calendario y código de
+estación (12 features). No usa clima ni eventos: el endpoint de contexto solo
+cubre el corte inicial y no se actualiza junto con el stream de competencia.
 
 Los rezagos y ventanas se calculan usando únicamente observaciones anteriores al
 instante que se predice, para evitar data leakage.
@@ -15,9 +18,9 @@ instante que se predice, para evitar data leakage.
 
 | Modelo | WAPE | Accuracy |
 |---|---:|---:|
-| ExtraTreesRegressor | 0,1279 | 87,21% |
-| HistGradientBoostingRegressor | 0,1298 | 87,02% |
-| RandomForestRegressor | 0,1311 | 86,89% |
+| ExtraTreesRegressor | 0,1285 | 87,15% |
+| HistGradientBoostingRegressor | 0,1302 | 86,98% |
+| RandomForestRegressor | 0,1314 | 86,86% |
 | Baseline estacional, lag de 1 día | 0,2100 | 79,00% |
 
 El mejor resultado inicial es `ExtraTreesRegressor`, con una mejora relativa de
@@ -41,7 +44,7 @@ por Git para no versionar datasets ni artefactos generados localmente.
 ## Artefacto entrenado
 
 El modelo ganador se entrenó con todas las filas disponibles después de crear
-los rezagos y ventanas válidos: 43.776 filas y 17 features. El paquete Joblib
+los rezagos y ventanas válidos: 43.776 filas y 12 features. El paquete Joblib
 se genera con:
 
 ```bash
@@ -65,13 +68,17 @@ del repositorio.
 
 ## Operación automática
 
-El workflow `.github/workflows/pulso-transmi-pipeline.yml` corre cada 10 minutos
-y también puede ejecutarse manualmente. Cada ejecución:
+El workflow `.github/workflows/pulso-transmi-pipeline.yml` corre cada 5 minutos
+y también puede ejecutarse manualmente. Cuando no hay ciclo abierto, la ejecución
+termina de inmediato; cada nuevo cron vuelve a consultar. Cada ejecución con
+ciclo abierto:
 
 1. consulta `GET /v1/forecast-cycles/current`;
 2. termina en verde si recibe `404 no_open_cycle`;
-3. descarga estaciones, observaciones, contexto y metadata solo con ciclo abierto;
-4. entrena el modelo con los datos sincronizados;
+3. descarga estaciones, contexto y metadata, y completa observaciones con el
+   stream liberado hasta `data_cutoff`;
+4. valida que cada serie llegue al cutoff sin huecos de 15 minutos y entrena el
+   modelo con rezagos calculados sobre intervalos consecutivos;
 5. envía el batch completo de targets con `Idempotency-Key` estable por ciclo;
 6. conserva en los logs el recibo de la API, sin mostrar la clave.
 

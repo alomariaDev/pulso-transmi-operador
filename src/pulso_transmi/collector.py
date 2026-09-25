@@ -72,6 +72,8 @@ def collect(
     with PulsoTransmiClient(base_url=api_url, api_key=api_key, timeout=120.0) as client:
         for filename in files:
             client.download(filename, destination / filename)
+        stream = client.stream_observations_dataframe()
+    stream.to_csv(destination / "stream_observations.csv", index=False)
 
     with psycopg.connect(database_url, prepare_threshold=None) as connection:
         stations = upsert_rows(
@@ -98,8 +100,22 @@ def collect(
             ("observed_at", "station_id"),
             ("demand",),
         )
+        stream_observations = upsert_rows(
+            connection,
+            "observations",
+            OBSERVATION_COLUMNS,
+            rows_from_csv(
+                destination / "stream_observations.csv", OBSERVATION_COLUMNS
+            ),
+            ("observed_at", "station_id"),
+            ("demand",),
+        )
         connection.commit()
-    return {"stations": stations, "context": context, "observations": observations}
+    return {
+        "stations": stations,
+        "context": context,
+        "observations": observations + stream_observations,
+    }
 
 
 def main() -> None:

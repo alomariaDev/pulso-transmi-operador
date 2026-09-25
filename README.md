@@ -62,27 +62,31 @@ página, usa `client.observations_page(...)` y conserva `next_cursor` exactament
 como lo entrega la API.
 
 La comparación de modelos usa los últimos 7 días como validación temporal,
-rezagos de demanda, ventanas móviles, calendario y contexto. Consulta
+rezagos de demanda, ventanas móviles y calendario. El pipeline no usa clima ni
+eventos como features porque la API no publica contexto actualizado para el
+stream de competencia. Consulta
 [docs/model-comparison.md](docs/model-comparison.md) para los resultados y la
 justificación del modelo seleccionado. El entrenamiento final del candidato
 ganador guarda `artifacts/extra_trees_demand.joblib`.
 El script `examples/05_submit_predictions.py` genera y envía las predicciones
 del ciclo abierto usando `PULSO_API_KEY` desde `.env`.
 
-El colector `python -m pulso_transmi.collector` descarga los datos del API y los
-actualiza en las tablas `pulso.stations`, `pulso.context` y
-`pulso.observations` de PostgreSQL. Requiere `PULSO_API_KEY` y
+El colector `python -m pulso_transmi.collector` descarga el corte base y las
+observaciones liberadas del stream; luego actualiza las tablas `pulso.stations`,
+`pulso.context` y `pulso.observations` de PostgreSQL. Requiere `PULSO_API_KEY` y
 `SUPABASE_DB_URL` en el entorno.
 
 El workflow [`pulso-transmi-pipeline.yml`](.github/workflows/pulso-transmi-pipeline.yml)
-despierta cada 10 minutos. El cron no decide si se envía una predicción: el
+despierta cada 5 minutos y termina rápido cuando no hay ciclo abierto. El cron
+no decide si se envía una predicción: el
 workflow consulta `GET /v1/forecast-cycles/current`, termina en verde cuando la
 API responde `404 no_open_cycle` y solo cuando hay ciclo abierto sincroniza,
-entrena y envía exactamente los targets publicados. `PULSO_API_KEY` debe existir
+descarga el stream hasta `data_cutoff`, valida continuidad temporal, entrena y
+envía exactamente los targets publicados. `PULSO_API_KEY` debe existir
 únicamente como GitHub Actions Secret.
 
 La operación automática está separada en tres workflows: el colector carga datos
-cada hora, `pulso-transmi-pipeline` ejecuta inferencia y submissions cada 10
+cada hora, `pulso-transmi-pipeline` ejecuta inferencia y submissions cada 5
 minutos cuando existe un ciclo abierto, y `pulso-transmi-drift` monitorea drift
 cada hora. Si el PSI de una variable supera 0,20, el workflow deja un reporte,
 reentrena `ExtraTreesRegressor` y guarda el artefacto como evidencia.
@@ -167,8 +171,10 @@ WAPE = sum(abs(real - predicción)) / sum(real)
 Accuracy = 100 × max(0, 1 - WAPE)
 ```
 
-La métrica se calcula por estación y luego se promedia. El contrato definitivo
-de submissions y leaderboard se publicará antes de iniciar la ventana competitiva.
+La métrica se calcula por estación y luego se promedia. El contrato vigente de
+submissions usa `schema_version: "1.0"`; consulta el esquema publicado en
+[`/openapi.json`](https://pulso-transmi.72-60-245-2.sslip.io/openapi.json) antes
+de iniciar cada ventana competitiva.
 
 ## Desarrollo del SDK
 

@@ -34,7 +34,18 @@ def load_data(api_url: str, api_key: str) -> tuple[pd.DataFrame, pd.DataFrame]:
     with PulsoTransmiClient(base_url=api_url, api_key=api_key, timeout=120.0) as client:
         for filename in ("observations.csv", "context.csv"):
             client.download(filename, DATA_DIR / filename)
+        stream = client.stream_observations_dataframe()
     observations = pd.read_csv(DATA_DIR / "observations.csv", parse_dates=["observed_at"])
+    observations = pd.concat([observations, stream], ignore_index=True)
+    observations["observed_at"] = pd.to_datetime(observations["observed_at"], utc=True)
+    observations["station_id"] = observations["station_id"].astype("string")
+    observations = observations.drop_duplicates(
+        ["station_id", "observed_at"], keep="last"
+    )
+    observations = observations.sort_values(
+        ["observed_at", "station_id"]
+    ).reset_index(drop=True)
+    observations.to_csv(DATA_DIR / "observations.csv", index=False)
     context = pd.read_csv(DATA_DIR / "context.csv", parse_dates=["observed_at"])
     return observations, context
 
@@ -53,12 +64,27 @@ def build_report(observations: pd.DataFrame, context: pd.DataFrame) -> dict[str,
         (context["observed_at"] > reference_start)
         & (context["observed_at"] <= recent_start)
     ]
-    metrics: dict[str, float] = {
+    metrics: dict[str, float | None] = {
         "demand": psi(reference_observations["demand"], recent_observations["demand"]),
-        "rain_mm": psi(reference_context["rain_mm"], recent_context["rain_mm"]),
-        "temperature_c": psi(reference_context["temperature_c"], recent_context["temperature_c"]),
-        "event_intensity": psi(reference_context["event_intensity"], recent_context["event_intensity"]),
     }
+    unavailable_features: dict[str, str] = {}
+    minimum_context_rows = int(0.9 * 7 * 96)
+    for name in ("rain_mm", "temperature_c", "event_intensity"):
+        recent_count = recent_context.loc[
+            recent_context[name].notna(), "observed_at"
+        ].nunique()
+        reference_count = reference_context.loc[
+            reference_context[name].notna(), "observed_at"
+        ].nunique()
+        if min(recent_count, reference_count) < minimum_context_rows:
+            metrics[name] = None
+            unavailable_features[name] = (
+                "context coverage is below 90% in one of the 7-day windows "
+                f"(recent={recent_count}, reference={reference_count})"
+            )
+        else:
+            metrics[name] = psi(reference_context[name], recent_context[name])
+    available_metrics = [value for value in metrics.values() if value is not None]
     return {
         "reference_start": reference_start.isoformat(),
         "reference_end": recent_start.isoformat(),
@@ -66,8 +92,12 @@ def build_report(observations: pd.DataFrame, context: pd.DataFrame) -> dict[str,
         "recent_end": cutoff.isoformat(),
         "threshold": DRIFT_THRESHOLD,
         "metrics": metrics,
-        "drifted_features": [name for name, value in metrics.items() if value >= DRIFT_THRESHOLD],
-        "drift_detected": any(value >= DRIFT_THRESHOLD for value in metrics.values()),
+        "unavailable_features": unavailable_features,
+        "drifted_features": [
+            name for name, value in metrics.items()
+            if value is not None and value >= DRIFT_THRESHOLD
+        ],
+        "drift_detected": any(value >= DRIFT_THRESHOLD for value in available_metrics),
     }
 
 

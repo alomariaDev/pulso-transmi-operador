@@ -3,19 +3,17 @@ from __future__ import annotations
 import os
 import subprocess
 import sys
-import time
 from datetime import datetime, timezone
 from pathlib import Path
 
 import httpx
+import pandas as pd
 
 from pulso_transmi import PulsoTransmiClient
 
 
 BASE_URL = os.getenv("PULSO_API_URL", "https://pulso-transmi.72-60-245-2.sslip.io").rstrip("/")
 DATA_DIR = Path("data")
-MAX_POLL_SECONDS = int(os.getenv("MAX_POLL_SECONDS", "720"))  # 12 minutos por ejecución
-POLL_INTERVAL_SECONDS = int(os.getenv("POLL_INTERVAL_SECONDS", "25"))  # Consulta cada 25 segundos
 
 
 def load_env_file() -> None:
@@ -48,7 +46,7 @@ def current_cycle(api_key: str) -> dict | None:
         return cycle
     except Exception as e:
         print(f"[{datetime.now(timezone.utc).strftime('%H:%M:%S')}] Error al consultar ciclo: {e}")
-        return None
+        raise
 
 
 def run(command: list[str]) -> None:
@@ -64,10 +62,39 @@ def process_cycle(cycle: dict, api_key: str) -> None:
     with PulsoTransmiClient(base_url=BASE_URL, api_key=api_key) as client:
         for filename in ("stations.csv", "observations.csv", "context.csv", "metadata.json"):
             client.download(filename, DATA_DIR / filename)
+        stream = client.stream_observations_dataframe(
+            end=cycle["data_cutoff"], released_by=cycle["opens_at"]
+        )
+
+    observations_path = DATA_DIR / "observations.csv"
+    observations = pd.read_csv(
+        observations_path, dtype={"station_id": "string"}, parse_dates=["observed_at"]
+    )
+    observations["observed_at"] = pd.to_datetime(observations["observed_at"], utc=True)
+    cutoff = pd.to_datetime(cycle["data_cutoff"], utc=True)
+    observations = observations.loc[observations["observed_at"] <= cutoff]
+    combined = pd.concat([observations, stream], ignore_index=True)
+    combined["observed_at"] = pd.to_datetime(combined["observed_at"], utc=True)
+    combined["station_id"] = combined["station_id"].astype("string")
+    combined = (
+        combined.sort_values(["station_id", "observed_at"])
+        .drop_duplicates(["station_id", "observed_at"], keep="last")
+        .sort_values(["observed_at", "station_id"])
+    )
+    station_ids = {str(target["station_id"]) for target in cycle["targets"]}
+    for station_id in station_ids:
+        station_rows = combined.loc[combined["station_id"] == station_id, "observed_at"]
+        if station_rows.empty or station_rows.max() != cutoff:
+            raise RuntimeError(
+                f"Los datos liberados para {station_id} no llegan al cutoff {cutoff.isoformat()}"
+            )
+    combined[["observed_at", "station_id", "demand"]].to_csv(
+        observations_path, index=False
+    )
     print("Datos sincronizados desde el API.")
 
     run([sys.executable, "examples/04_train_extra_trees.py"])
-    run([sys.executable, "examples/05_submit_predictions.py"])
+    run([sys.executable, "examples/05_submit_predictions.py", cycle_id])
     print(f"[{datetime.now(timezone.utc).strftime('%H:%M:%S')}] ✅ Predicciones enviadas exitosamente para el ciclo {cycle_id}.")
 
 
@@ -77,24 +104,16 @@ def main() -> None:
     if not api_key:
         raise RuntimeError("PULSO_API_KEY no está configurada")
 
-    start_time = time.time()
-    processed_cycles = set()
-    print(f"Iniciando escucha activa de ciclos por hasta {MAX_POLL_SECONDS}s (intervalo: {POLL_INTERVAL_SECONDS}s)...")
+    cycle = current_cycle(api_key)
+    if cycle is None:
+        print("No hay ciclo abierto; la próxima ejecución programada volverá a consultar.")
+        return
 
-    while time.time() - start_time < MAX_POLL_SECONDS:
-        cycle = current_cycle(api_key)
-        if cycle is not None and cycle.get("cycle_id") not in processed_cycles:
-            process_cycle(cycle, api_key)
-            processed_cycles.add(cycle["cycle_id"])
-        else:
-            remaining = int(MAX_POLL_SECONDS - (time.time() - start_time))
-            print(f"[{datetime.now(timezone.utc).strftime('%H:%M:%S')}] Sin ciclo abierto nuevo. Esperando {POLL_INTERVAL_SECONDS}s (restan ~{remaining}s de ventana)...")
-
-        if time.time() - start_time + POLL_INTERVAL_SECONDS >= MAX_POLL_SECONDS:
-            break
-        time.sleep(POLL_INTERVAL_SECONDS)
-
-    print("Ventana de polling completada correctamente.")
+    process_cycle(cycle, api_key)
+    print(
+        f"[{datetime.now(timezone.utc).strftime('%H:%M:%S')}] "
+        f"✅ Predicciones enviadas para el ciclo {cycle['cycle_id']}."
+    )
 
 
 if __name__ == "__main__":
