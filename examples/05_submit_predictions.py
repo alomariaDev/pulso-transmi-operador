@@ -131,6 +131,20 @@ def main(expected_cycle_id: str | None = None) -> None:
             json=payload,
             headers={"Idempotency-Key": client_run_id},
         )
+        if response.status_code == 409:
+            detail = response.json().get("detail", {})
+            if isinstance(detail, dict) and detail.get("code") == "idempotency_conflict":
+                print(
+                    json.dumps(
+                        {
+                            "cycle_id": cycle["cycle_id"],
+                            "status": "already_submitted",
+                            "message": "La API ya recibió una submission con esta clave de idempotencia; se conserva la aceptada.",
+                        },
+                        ensure_ascii=False,
+                    )
+                )
+                return
         if response.status_code >= 400:
             raise RuntimeError(f"Submission rejected ({response.status_code}): {response.text}")
         response.raise_for_status()

@@ -85,6 +85,10 @@ descarga el stream hasta `data_cutoff`, valida continuidad temporal, entrena y
 envía exactamente los targets publicados. `PULSO_API_KEY` debe existir
 únicamente como GitHub Actions Secret.
 
+Si otro disparador ya envió el mismo ciclo, el conflicto de idempotencia se
+registra como `already_submitted` y la ejecución termina en verde; no se vuelve
+a enviar un batch distinto para ese ciclo.
+
 La operación automática está separada en tres workflows: el colector carga datos
 cada hora, `pulso-transmi-pipeline` ejecuta inferencia y submissions cada 5
 minutos cuando existe un ciclo abierto, y `pulso-transmi-drift` monitorea drift
