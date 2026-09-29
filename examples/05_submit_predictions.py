@@ -138,6 +138,18 @@ def persist_submission(
     with psycopg.connect(database_url, prepare_threshold=None) as connection:
         with connection.cursor() as cursor:
             cursor.execute(
+                "select model_id from pulso.training_runs where run_id = %s",
+                (run_id,),
+            )
+            existing_run = cursor.fetchone()
+            if existing_run:
+                print(
+                    f"El ciclo {cycle_id} ya está registrado en Supabase "
+                    f"(model_id={existing_run[0]}); no se cambia su versión."
+                )
+                return
+
+            cursor.execute(
                 """
                 insert into pulso.model_versions
                     (model_id, algorithm, feature_version, code_commit, hyperparameters)
