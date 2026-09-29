@@ -449,8 +449,12 @@ def main() -> None:
     if output_path:
         with open(output_path, "a", encoding="utf-8") as output:
             output.write(f"drift_detected={'true' if report['drift_detected'] else 'false'}\n")
-            accuracy = accuracy_report["overall"].get("accuracy")
-            output.write(f"accuracy={'n/a' if accuracy is None else accuracy}\n")
+            recent_accuracy = accuracy_report["recent_six_cycles"]["overall"].get("accuracy")
+            cumulative_accuracy = accuracy_report["cumulative"]["overall"].get("accuracy")
+            output.write(f"accuracy={'n/a' if recent_accuracy is None else recent_accuracy}\n")
+            output.write(
+                f"cumulative_accuracy={'n/a' if cumulative_accuracy is None else cumulative_accuracy}\n"
+            )
 
 
 if __name__ == "__main__":
