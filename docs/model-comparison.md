@@ -89,17 +89,17 @@ cron en producción.
 
 ## Drift y continuidad operativa
 
-El workflow `.github/workflows/pulso-transmi-drift.yml` compara los últimos 7
-días contra los 7 días anteriores mediante PSI. Si alguna variable supera 0,20,
-reentrena automáticamente el modelo y publica `drift_report.json`, logs y el
-Joblib como artefactos de Actions. La inferencia continúa funcionando porque el
-workflow de submissions conserva su guardia de ciclo y entrena con los datos
-sincronizados antes de cada envío.
+La estrategia actual se documenta en [`drift-monitoring.md`](drift-monitoring.md).
+El PSI es una señal descriptiva: una sola alerta no causa reentrenamiento ni
+promoción automática. La Action compara desempeño acumulado y reciente, cobertura
+y errores por estación/horizonte. La ejecución de cada ciclo vuelve a entrenar
+con observaciones hasta el cutoff vigente; cada artefacto queda identificado por
+hash para poder relacionar sus resultados posteriores.
 
 ## Próximas comprobaciones
 
-- Repetir la validación con varias ventanas móviles.
-- Reportar WAPE por estación, no solo el promedio global.
+- Ampliar la comparación offline a backtests de varias ventanas móviles y los
+  cuatro horizontes antes de cambiar algoritmo o hiperparámetros.
 - Comparar entrenamiento global contra un modelo por estación.
 - Ajustar hiperparámetros únicamente dentro del bloque de entrenamiento.
 - Registrar la versión del modelo, features, cutoff y métricas en Supabase.

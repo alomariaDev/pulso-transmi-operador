@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import sys
@@ -18,7 +19,7 @@ from model_features import build_features
 BASE_URL = os.getenv("PULSO_API_URL", "https://pulso-transmi.72-60-245-2.sslip.io").rstrip("/")
 DATA_DIR = Path("data")
 MODEL_PATH = Path("artifacts/extra_trees_demand.joblib")
-MODEL_ID = "extra_trees_regressor_v1"
+MODEL_FAMILY_ID = "extra_trees_regressor_v1"
 FEATURE_VERSION = "lag_features_v1"
 
 
@@ -98,6 +99,8 @@ def persist_submission(
     cycle_id = str(cycle["cycle_id"])
     run_id = f"extra-trees-{cycle_id}"
     cutoff_id = cycle_id
+    artifact_sha256 = hashlib.sha256(MODEL_PATH.read_bytes()).hexdigest()
+    model_id = f"{MODEL_FAMILY_ID}:{artifact_sha256[:16]}"
     cutoff_at = pd.Timestamp(str(cycle["data_cutoff"])).to_pydatetime()
     train_start = pd.Timestamp(str(package["data_start"])).to_pydatetime()
     training_data_end = pd.Timestamp(str(package["data_end"])).to_pydatetime()
@@ -111,6 +114,8 @@ def persist_submission(
         "expected_predictions": len(cycle["targets"]),
         "persisted_predictions": len(predictions),
         "data_cutoff": str(cycle["data_cutoff"]),
+        "artifact_sha256": artifact_sha256,
+        "model_family": MODEL_FAMILY_ID,
     }
     hyperparameters = json.dumps(package.get("parameters", {}), default=str)
     metrics = json.dumps(run_metrics, ensure_ascii=False, default=str)
@@ -139,7 +144,7 @@ def persist_submission(
                 values (%s, %s, %s, %s, %s::jsonb)
                 on conflict (model_id) do nothing
                 """,
-                (MODEL_ID, "ExtraTreesRegressor", FEATURE_VERSION, code_commit, hyperparameters),
+                (model_id, "ExtraTreesRegressor", FEATURE_VERSION, code_commit, hyperparameters),
             )
             cursor.execute(
                 """
@@ -168,7 +173,7 @@ def persist_submission(
                 """,
                 (
                     run_id,
-                    MODEL_ID,
+                    model_id,
                     cutoff_id,
                     trained_at,
                     finished_at,

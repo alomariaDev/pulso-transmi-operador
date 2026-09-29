@@ -15,7 +15,7 @@ from pulso_transmi import PulsoTransmiClient
 DATA_DIR = Path("data")
 REPORT_PATH = Path("artifacts/drift_report.json")
 DRIFT_THRESHOLD = 0.20
-MODEL_ID = "extra_trees_regressor_v1"
+MODEL_FAMILY_ID = "extra_trees_regressor_v1"
 HORIZONS = (15, 30, 45, 60)
 ACCURACY_REPORT_PATH = Path("artifacts/accuracy_report.json")
 
@@ -123,12 +123,37 @@ def accuracy_for_counts(
     }
 
 
+def _empty_counts() -> dict[str, int | float]:
+    return {
+        "prediction_count": 0,
+        "resolved_count": 0,
+        "absolute_error_sum": 0.0,
+        "actual_sum": 0.0,
+    }
+
+
+def _merge_counts(target: dict[str, int | float], source: dict[str, int | float]) -> None:
+    for key in target:
+        target[key] += source[key]
+
+
+def _metric_snapshot(counts: dict[str, int | float]) -> dict[str, float | int | None]:
+    return accuracy_for_counts(
+        int(counts["prediction_count"]),
+        int(counts["resolved_count"]),
+        float(counts["absolute_error_sum"]),
+        float(counts["actual_sum"]),
+    )
+
+
 def evaluate_accuracy(database_url: str) -> dict[str, object]:
     with psycopg.connect(database_url, prepare_threshold=None) as connection:
         with connection.cursor() as cursor:
             cursor.execute(
                 """
-                select r.run_id, r.finished_at, p.horizon,
+                select r.run_id, r.model_id, r.finished_at,
+                       coalesce(nullif(r.metrics->>'expected_predictions', '')::integer, 0),
+                       p.station_id, p.horizon,
                        count(p.prediction_id) as prediction_count,
                        count(e.actual_demand) as resolved_count,
                        coalesce(sum(e.absolute_error)
@@ -139,96 +164,185 @@ def evaluate_accuracy(database_url: str) -> dict[str, object]:
                 join pulso.predictions p on p.run_id = r.run_id
                 left join pulso.prediction_evaluation e
                     on e.prediction_id = p.prediction_id
-                where r.model_id = %s and r.status = 'succeeded'
-                group by r.run_id, r.finished_at, p.horizon
+                where (r.model_id = %s or r.model_id like %s)
+                  and r.status = 'succeeded'
+                group by r.run_id, r.model_id, r.finished_at,
+                         r.metrics->>'expected_predictions', p.station_id, p.horizon
                 order by r.finished_at desc nulls last, r.run_id, p.horizon
                 """,
-                (MODEL_ID,),
+                (MODEL_FAMILY_ID, f"{MODEL_FAMILY_ID}:%"),
             )
             rows = cursor.fetchall()
 
-            by_horizon = {
-                horizon: {"prediction_count": 0, "resolved_count": 0,
-                          "absolute_error_sum": 0.0, "actual_sum": 0.0}
-                for horizon in HORIZONS
-            }
-            by_run: dict[str, dict[str, object]] = {}
-            for run_id, finished_at, horizon, count, resolved, error_sum, actual_sum in rows:
-                if horizon not in by_horizon:
+            runs: dict[str, dict[str, object]] = {}
+            for (run_id, model_id, finished_at, expected_count, station_id, horizon,
+                 count, resolved, error_sum, actual_sum) in rows:
+                if horizon not in HORIZONS:
                     continue
-                horizon_totals = by_horizon[horizon]
-                horizon_totals["prediction_count"] += int(count)
-                horizon_totals["resolved_count"] += int(resolved)
-                horizon_totals["absolute_error_sum"] += float(error_sum)
-                horizon_totals["actual_sum"] += float(actual_sum)
-
-                run = by_run.setdefault(
+                run = runs.setdefault(
                     str(run_id),
-                    {"finished_at": finished_at, "prediction_count": 0,
-                     "resolved_count": 0, "absolute_error_sum": 0.0,
-                     "actual_sum": 0.0, "horizons": {}},
+                    {
+                        "run_id": str(run_id),
+                        "model_id": str(model_id),
+                        "finished_at": finished_at,
+                        "expected_predictions": int(expected_count or 0),
+                        "counts": _empty_counts(),
+                        "by_horizon": {h: _empty_counts() for h in HORIZONS},
+                        "by_station_horizon": {},
+                    },
                 )
-                run["prediction_count"] += int(count)
-                run["resolved_count"] += int(resolved)
-                run["absolute_error_sum"] += float(error_sum)
-                run["actual_sum"] += float(actual_sum)
-                run["horizons"][str(horizon)] = accuracy_for_counts(
-                    int(count), int(resolved), float(error_sum), float(actual_sum)
+                cell = {
+                    "prediction_count": int(count),
+                    "resolved_count": int(resolved),
+                    "absolute_error_sum": float(error_sum),
+                    "actual_sum": float(actual_sum),
+                }
+                _merge_counts(run["counts"], cell)
+                _merge_counts(run["by_horizon"][horizon], cell)
+                station_cells = run["by_station_horizon"].setdefault(
+                    str(station_id), {h: _empty_counts() for h in HORIZONS}
                 )
+                _merge_counts(station_cells[horizon], cell)
 
-            horizon_report: dict[str, object] = {}
+            run_order = sorted(
+                runs,
+                key=lambda key: (runs[key]["finished_at"] is not None,
+                                 runs[key]["finished_at"], key),
+                reverse=True,
+            )
+            recent_run_ids = set(run_order[:6])
+            cumulative_horizons = {h: _empty_counts() for h in HORIZONS}
+            recent_horizons = {h: _empty_counts() for h in HORIZONS}
+            cumulative_station_horizon: dict[str, dict[int, dict[str, int | float]]] = {}
+            recent_station_horizon: dict[str, dict[int, dict[str, int | float]]] = {}
+            cumulative_total = _empty_counts()
+            recent_total = _empty_counts()
+            cumulative_expected = cumulative_recorded = 0
+            recent_expected = recent_recorded = 0
             check_rows = []
-            for horizon, totals in by_horizon.items():
-                metric = accuracy_for_counts(
-                    int(totals["prediction_count"]),
-                    int(totals["resolved_count"]),
-                    float(totals["absolute_error_sum"]),
-                    float(totals["actual_sum"]),
-                )
+
+            for run_id, run in runs.items():
+                _merge_counts(cumulative_total, run["counts"])
+                cumulative_expected += int(run["expected_predictions"])
+                cumulative_recorded += int(run["counts"]["prediction_count"])
+                for horizon in HORIZONS:
+                    _merge_counts(cumulative_horizons[horizon], run["by_horizon"][horizon])
+                for station_id, horizon_map in run["by_station_horizon"].items():
+                    cumulative_station_horizon.setdefault(
+                        station_id, {h: _empty_counts() for h in HORIZONS}
+                    )
+                    for horizon in HORIZONS:
+                        _merge_counts(
+                            cumulative_station_horizon[station_id][horizon],
+                            horizon_map[horizon],
+                        )
+                if run_id in recent_run_ids:
+                    _merge_counts(recent_total, run["counts"])
+                    recent_expected += int(run["expected_predictions"])
+                    recent_recorded += int(run["counts"]["prediction_count"])
+                    for horizon in HORIZONS:
+                        _merge_counts(recent_horizons[horizon], run["by_horizon"][horizon])
+                    for station_id, horizon_map in run["by_station_horizon"].items():
+                        recent_station_horizon.setdefault(
+                            station_id, {h: _empty_counts() for h in HORIZONS}
+                        )
+                        for horizon in HORIZONS:
+                            _merge_counts(
+                                recent_station_horizon[station_id][horizon],
+                                horizon_map[horizon],
+                            )
+
+            def with_status(counts: dict[str, int | float]) -> dict[str, object]:
+                metric = _metric_snapshot(counts)
                 metric["status"] = (
                     "passed"
                     if metric["prediction_count"] > 0
                     and metric["resolved_count"] == metric["prediction_count"]
+                    and metric["accuracy"] is not None
                     else "warning"
                 )
-                horizon_report[str(horizon)] = metric
-                check_rows.append(
-                    (
-                        f"competition_accuracy_{horizon}m",
-                        metric["status"],
-                        metric["accuracy"],
-                        json.dumps({"horizon_minutes": horizon, **metric}),
-                    )
-                )
+                return metric
 
-            total_predictions = sum(int(v["prediction_count"]) for v in by_horizon.values())
-            total_resolved = sum(int(v["resolved_count"]) for v in by_horizon.values())
-            total_error = sum(float(v["absolute_error_sum"]) for v in by_horizon.values())
-            total_actual = sum(float(v["actual_sum"]) for v in by_horizon.values())
-            overall = accuracy_for_counts(
-                total_predictions, total_resolved, total_error, total_actual
-            )
-            overall["status"] = (
-                "passed"
-                if total_predictions > 0 and total_resolved == total_predictions
-                else "warning"
-            )
-            check_rows.append(
-                (
-                    "competition_accuracy_overall",
-                    overall["status"],
-                    overall["accuracy"],
-                    json.dumps({"horizons_minutes": HORIZONS, **overall}),
-                )
-            )
+            def summarize_horizons(source: dict[int, dict[str, int | float]]) -> dict[str, object]:
+                return {str(h): with_status(source[h]) for h in HORIZONS}
 
-            for run_id, run in by_run.items():
-                metric = accuracy_for_counts(
-                    int(run["prediction_count"]),
-                    int(run["resolved_count"]),
-                    float(run["absolute_error_sum"]),
-                    float(run["actual_sum"]),
-                )
+            cumulative_by_horizon = summarize_horizons(cumulative_horizons)
+            recent_by_horizon = summarize_horizons(recent_horizons)
+            cumulative_overall = with_status(cumulative_total)
+            recent_overall = with_status(recent_total)
+            cumulative_overall["submission_coverage_pct"] = (
+                100 * cumulative_recorded / cumulative_expected if cumulative_expected else None
+            )
+            recent_overall["submission_coverage_pct"] = (
+                100 * recent_recorded / recent_expected if recent_expected else None
+            )
+            for metric, recorded, expected in (
+                (cumulative_overall, cumulative_recorded, cumulative_expected),
+                (recent_overall, recent_recorded, recent_expected),
+            ):
+                if not expected or recorded < expected:
+                    metric["status"] = "warning"
+
+            station_report = {}
+            for station_id in sorted(set(cumulative_station_horizon) | set(recent_station_horizon)):
+                station_report[station_id] = {
+                    "cumulative": {
+                        str(h): with_status(cumulative_station_horizon.get(
+                            station_id, {h: _empty_counts() for h in HORIZONS}
+                        )[h]) for h in HORIZONS
+                    },
+                    "recent_six_cycles": {
+                        str(h): with_status(recent_station_horizon.get(
+                            station_id, {h: _empty_counts() for h in HORIZONS}
+                        )[h]) for h in HORIZONS
+                    },
+                }
+
+            cycle_report = []
+            for run_id in run_order[:6]:
+                run = runs[run_id]
+                cycle_report.append({
+                    "run_id": run_id,
+                    "model_id": run["model_id"],
+                    "finished_at": run["finished_at"].isoformat() if run["finished_at"] else None,
+                    "expected_predictions": run["expected_predictions"],
+                    "persisted_predictions": run["counts"]["prediction_count"],
+                    "accuracy": with_status(run["counts"]),
+                    "by_horizon": summarize_horizons(run["by_horizon"]),
+                })
+
+            for window, report in (("cumulative", cumulative_by_horizon),
+                                   ("recent_six_cycles", recent_by_horizon)):
+                for horizon, metric in report.items():
+                    check_rows.append((
+                        f"competition_accuracy_{window}_{horizon}m",
+                        metric["status"], metric["accuracy"],
+                        json.dumps({"window": window, "horizon_minutes": int(horizon), **metric}),
+                    ))
+            for window, metric, expected, recorded in (
+                ("cumulative", cumulative_overall, cumulative_expected, cumulative_recorded),
+                ("recent_six_cycles", recent_overall, recent_expected, recent_recorded),
+            ):
+                check_rows.append((
+                    f"competition_accuracy_{window}_overall", metric["status"],
+                    metric["accuracy"], json.dumps({
+                        "window": window, "horizons_minutes": HORIZONS,
+                        "expected_predictions": expected, "persisted_predictions": recorded,
+                        **metric,
+                    }),
+                ))
+            for station_id, windows in station_report.items():
+                for horizon, metric in windows["recent_six_cycles"].items():
+                    check_rows.append((
+                        f"accuracy_6c_{station_id}_{horizon}m", metric["status"],
+                        metric["accuracy"], json.dumps({
+                            "station_id": station_id, "horizon_minutes": int(horizon),
+                            "window": "recent_six_cycles", **metric,
+                        }),
+                    ))
+
+            for run_id, run in runs.items():
+                metric = _metric_snapshot(run["counts"])
                 cursor.execute(
                     """
                     update pulso.training_runs
@@ -244,7 +358,8 @@ def evaluate_accuracy(database_url: str) -> dict[str, object]:
                         metric["accuracy"],
                         json.dumps({"competition_evaluation": {
                             **metric,
-                            "horizons": run["horizons"],
+                            "horizons": summarize_horizons(run["by_horizon"]),
+                            "model_id": run["model_id"],
                             "evaluated_at": datetime.now(timezone.utc).isoformat(),
                         }}),
                         run_id,
@@ -263,12 +378,16 @@ def evaluate_accuracy(database_url: str) -> dict[str, object]:
 
     return {
         "computed_at": datetime.now(timezone.utc).isoformat(),
-        "model_id": MODEL_ID,
+        "model_family": MODEL_FAMILY_ID,
         "formula": "accuracy = 100 * max(0, 1 - WAPE)",
         "horizons_minutes": list(HORIZONS),
-        "by_horizon": horizon_report,
-        "overall": overall,
-        "submission_runs": len(by_run),
+        "cycle_window": "six_most_recent_persisted_submission_cycles",
+        "cumulative": {"by_horizon": cumulative_by_horizon, "overall": cumulative_overall},
+        "recent_six_cycles": {"by_horizon": recent_by_horizon, "overall": recent_overall},
+        "by_station_horizon": station_report,
+        "cycles": cycle_report,
+        "submission_runs": len(runs),
+        "recent_cycle_count": min(6, len(runs)),
     }
 
 

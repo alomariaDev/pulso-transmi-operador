@@ -38,10 +38,6 @@ jobs:
           set -o pipefail
           python examples/07_drift_monitor.py 2>&1 | tee drift.log
 
-      - name: Retrain after drift
-        if: steps.drift.outputs.drift_detected == 'true'
-        run: python examples/04_train_extra_trees.py
-
       - name: Publish drift summary
         if: always()
         run: |
@@ -52,6 +48,7 @@ jobs:
             echo
             echo '```json'
             cat artifacts/drift_report.json 2>/dev/null || echo '{}'
+            echo '```'
             echo
             echo '### Accuracy por horizonte (15, 30, 45 y 60 min)'
             echo '```json'
@@ -68,6 +65,5 @@ jobs:
             artifacts/drift_report.json
             artifacts/accuracy_report.json
             drift.log
-            artifacts/extra_trees_demand.joblib
           if-no-files-found: ignore
           retention-days: 14
