@@ -31,15 +31,18 @@ envía sus targets publicados. Cada Joblib queda versionado con SHA-256; la fila
 de Supabase relaciona ese artefacto con ciclo, cutoff, rango de datos, filas,
 parámetros y commit.
 
-Una alerta de PSI aislada solo inicia revisión; no dispara un entrenamiento
-paralelo ni se presenta como motivo suficiente para cambiar de modelo. La Action
-de drift no promueve artefactos: el artefacto de inferencia se genera dentro del
-pipeline del ciclo y la versión queda sujeta a evaluación posterior. Se mantiene
-la receta ExtraTrees actual hasta que una comparación temporal justifique cambiar
-algoritmo o parámetros. Para proponer ese cambio, comparar la misma ventana de
-validación y los mismos cuatro horizontes con coverage visible, revisar si el
-error se concentra por estación/horizonte y considerar la tendencia de las seis
-últimas entregas junto al acumulado. No decidir por un único ciclo malo ni
+Una alerta PSI igual o superior a 0,20 dispara un reentrenamiento diagnóstico en
+la Action de drift y conserva el Joblib y el log como artefactos de GitHub
+Actions. Esa salida no se promueve ni se conecta directamente al envío de
+predicciones. El pipeline de ciclo abierto entrena por separado con observaciones
+hasta su `data_cutoff`, y entrega esa versión.
+
+La alerta sirve para iniciar una evaluación, no demuestra que el modelo nuevo
+mejore. Se mantiene la receta ExtraTrees actual hasta que una comparación
+temporal justifique cambiar algoritmo o parámetros. Para proponer ese cambio,
+comparar ventanas y los mismos cuatro horizontes con cobertura visible, revisar
+si el error se concentra por estación/horizonte y considerar la tendencia de las
+seis últimas entregas junto al acumulado. No decidir por un único ciclo malo ni
 confundir ausencia de evaluación con accuracy cero.
 
 La fase inicial seleccionó ExtraTrees frente a un baseline con una partición

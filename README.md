@@ -92,10 +92,11 @@ a enviar un batch distinto para ese ciclo.
 La operación automática está separada en tres workflows: el colector carga datos
 cada hora, `pulso-transmi-pipeline` ejecuta inferencia y submissions cada 5
 minutos cuando existe un ciclo abierto, y `pulso-transmi-drift` monitorea drift
-cada hora. Una alerta PSI documenta un cambio de distribución; por sí sola no
-dispara un reentrenamiento o reemplazo de modelo. Cada artefacto entregado se
-identifica con SHA-256 y se enlaza al ciclo, cutoff, commit y parámetros en
-Supabase. El monitor compara el acumulado con las seis submissions más recientes,
+cada hora. Si el PSI llega a 0,20, el workflow de drift reentrena y sube un
+artefacto diagnóstico; este no se promueve ni se usa directamente para enviar
+predicciones. Cada artefacto entregado se identifica con SHA-256 y se enlaza al
+ciclo, cutoff, commit y parámetros en Supabase. El monitor compara el acumulado
+con las seis submissions más recientes,
 desglosa accuracy y cobertura por horizonte y estación, y guarda PSI y métricas
 en `pulso.data_quality_checks` y `pulso.training_runs`. Publica
 `accuracy_report.json` como evidencia de ejecución. Ver

@@ -90,11 +90,11 @@ cron en producción.
 ## Drift y continuidad operativa
 
 La estrategia actual se documenta en [`drift-monitoring.md`](drift-monitoring.md).
-El PSI es una señal descriptiva: una sola alerta no causa reentrenamiento ni
-promoción automática. La Action compara desempeño acumulado y reciente, cobertura
-y errores por estación/horizonte. La ejecución de cada ciclo vuelve a entrenar
-con observaciones hasta el cutoff vigente; cada artefacto queda identificado por
-hash para poder relacionar sus resultados posteriores.
+Una alerta PSI dispara un reentrenamiento diagnóstico, que se conserva como
+artefacto; no se promueve automáticamente. La Action compara desempeño
+acumulado y reciente, cobertura y errores por estación/horizonte. La ejecución
+de cada ciclo vuelve a entrenar con observaciones hasta el cutoff vigente; cada
+artefacto entregado queda identificado por hash para relacionar sus resultados.
 
 ## Próximas comprobaciones
 
