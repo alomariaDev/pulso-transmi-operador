@@ -34,7 +34,6 @@ def log_training_run(
         return None
 
     import mlflow
-    import mlflow.sklearn
     from mlflow.tracking import MlflowClient
 
     mlflow.set_tracking_uri(tracking_uri)
@@ -91,8 +90,7 @@ def log_training_run(
                 **drift_metrics,
             }
         )
-        mlflow.log_artifact(str(model_path), artifact_path="joblib")
-        mlflow.sklearn.log_model(package["model"], artifact_path="sklearn_model")
+        mlflow.log_artifact(str(model_path), artifact_path="model")
         run_id = run.info.run_id
         output_path = os.getenv("GITHUB_OUTPUT")
         if output_path:
