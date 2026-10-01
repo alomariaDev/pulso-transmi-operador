@@ -9,7 +9,7 @@ import pandas as pd
 from sklearn.ensemble import ExtraTreesRegressor
 
 from model_features import build_features
-from mlflow_tracking import log_training_run
+from mlflow_tracking import has_drift_run_for_cutoff, log_training_run
 
 
 DATA_DIR = Path("data")
@@ -38,10 +38,17 @@ def main() -> None:
         dtype={"station_id": "string"},
         parse_dates=["observed_at"],
     )
+    training_data_end = pd.to_datetime(observations["observed_at"], utc=True).max()
+    trigger = os.getenv("TRAINING_TRIGGER", "cycle_or_manual")
+    if trigger == "drift" and has_drift_run_for_cutoff(training_data_end.isoformat()):
+        print(
+            "Se omite reentrenamiento de drift: MLflow ya tiene un modelo para "
+            f"el corte {training_data_end.isoformat()}."
+        )
+        return
     context = pd.read_csv(DATA_DIR / "context.csv", parse_dates=["observed_at"])
     featured = build_features(observations, context)
     featured = featured.dropna(subset=[*FEATURE_COLUMNS, "demand"]).reset_index(drop=True)
-    training_data_end = pd.to_datetime(observations["observed_at"], utc=True).max()
     station_values = sorted(observations["station_id"].dropna().unique().tolist())
     station_codes = {station_id: code for code, station_id in enumerate(station_values)}
     featured["station_code"] = featured["station_id"].map(station_codes)
@@ -85,7 +92,7 @@ def main() -> None:
         mlflow_run_id = log_training_run(
             package=package,
             model_path=MODEL_PATH,
-            trigger=os.getenv("TRAINING_TRIGGER", "cycle_or_manual"),
+            trigger=trigger,
         )
     except Exception as error:
         if os.getenv("MLFLOW_REQUIRED", "false").lower() == "true":

@@ -97,3 +97,30 @@ def log_training_run(
             with open(output_path, "a", encoding="utf-8") as output:
                 output.write(f"mlflow_run_id={run_id}\n")
         return run_id
+
+
+def has_drift_run_for_cutoff(data_cutoff: str) -> bool:
+    """Avoid repeating hourly drift retraining when the API data has not changed."""
+    tracking_uri = _tracking_uri()
+    if not tracking_uri:
+        if os.getenv("MLFLOW_REQUIRED", "false").lower() == "true":
+            raise RuntimeError("MLflow tracking is required for drift retraining")
+        return False
+
+    import mlflow
+    from mlflow.tracking import MlflowClient
+
+    mlflow.set_tracking_uri(tracking_uri)
+    experiment = MlflowClient().get_experiment_by_name(EXPERIMENT_NAME)
+    if experiment is None:
+        return False
+    runs = MlflowClient().search_runs(
+        experiment_ids=[experiment.experiment_id],
+        filter_string=f"tags.data_cutoff = '{data_cutoff}'",
+        max_results=100,
+    )
+    return any(
+        run.info.status == "FINISHED"
+        and run.data.tags.get("training_trigger", "").startswith("drift")
+        for run in runs
+    )

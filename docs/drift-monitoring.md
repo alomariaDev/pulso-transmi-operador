@@ -39,8 +39,9 @@ datos, corte, commit, SHA-256 del Joblib y valores PSI se registran como un run
 de MLflow (`pulso-transmi-operador`), usando la base de Supabase como backend de
 tracking. El Joblib y el directorio de artefactos MLflow también se adjuntan a la
 ejecución de GitHub Actions para conservar el binario aunque el runner sea
-efímero. El flujo normal sigue entrenando con el `data_cutoff` del ciclo abierto
-y, por tanto, no usa observaciones posteriores para generar una submission.
+efímero. Solo se crea un run de drift por cada corte nuevo de observaciones. El
+flujo normal sigue entrenando con el `data_cutoff` del ciclo abierto y, por
+tanto, no usa observaciones posteriores para generar una submission.
 
 La alerta PSI detecta cambios de distribución, no demuestra por sí sola que el
 modelo nuevo mejore. El entrenamiento conserva la familia ExtraTrees y pondera
