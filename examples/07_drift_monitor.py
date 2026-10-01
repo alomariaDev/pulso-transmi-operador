@@ -73,6 +73,25 @@ def build_report(observations: pd.DataFrame, context: pd.DataFrame) -> dict[str,
         "demand": psi(reference_observations["demand"], recent_observations["demand"]),
     }
     unavailable_features: dict[str, str] = {}
+    minimum_station_rows = int(0.9 * 7 * 96)
+    for station_id in sorted(observations["station_id"].dropna().unique()):
+        feature_name = f"demand_station_{station_id}"
+        station_reference = reference_observations.loc[
+            reference_observations["station_id"] == station_id, "demand"
+        ]
+        station_recent = recent_observations.loc[
+            recent_observations["station_id"] == station_id, "demand"
+        ]
+        if min(station_reference.notna().sum(), station_recent.notna().sum()) < minimum_station_rows:
+            metrics[feature_name] = None
+            unavailable_features[feature_name] = (
+                "demand coverage is below 90% in one of the 7-day windows "
+                f"(recent={station_recent.notna().sum()}, "
+                f"reference={station_reference.notna().sum()})"
+            )
+        else:
+            metrics[feature_name] = psi(station_reference, station_recent)
+
     minimum_context_rows = int(0.9 * 7 * 96)
     for name in ("rain_mm", "temperature_c", "event_intensity"):
         recent_count = recent_context.loc[
@@ -90,12 +109,22 @@ def build_report(observations: pd.DataFrame, context: pd.DataFrame) -> dict[str,
         else:
             metrics[name] = psi(reference_context[name], recent_context[name])
     available_metrics = [value for value in metrics.values() if value is not None]
+    age_hours = max(
+        0.0,
+        (pd.Timestamp.now(tz="UTC") - pd.Timestamp(cutoff)).total_seconds() / 3600,
+    )
     return {
         "reference_start": reference_start.isoformat(),
         "reference_end": recent_start.isoformat(),
         "recent_start": recent_start.isoformat(),
         "recent_end": cutoff.isoformat(),
         "threshold": DRIFT_THRESHOLD,
+        "data_freshness": {
+            "latest_observation_at": cutoff.isoformat(),
+            "age_hours": age_hours,
+            "stale": age_hours > 36,
+            "stale_after_hours": 36,
+        },
         "metrics": metrics,
         "unavailable_features": unavailable_features,
         "drifted_features": [

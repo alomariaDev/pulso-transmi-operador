@@ -29,6 +29,7 @@ FEATURE_COLUMNS = [
     "weekday",
     "is_weekend",
 ]
+RECENCY_HALF_LIFE_DAYS = 14.0
 
 
 def main() -> None:
@@ -40,6 +41,7 @@ def main() -> None:
     context = pd.read_csv(DATA_DIR / "context.csv", parse_dates=["observed_at"])
     featured = build_features(observations, context)
     featured = featured.dropna(subset=[*FEATURE_COLUMNS, "demand"]).reset_index(drop=True)
+    training_data_end = pd.to_datetime(observations["observed_at"], utc=True).max()
     station_values = sorted(observations["station_id"].dropna().unique().tolist())
     station_codes = {station_id: code for code, station_id in enumerate(station_values)}
     featured["station_code"] = featured["station_id"].map(station_codes)
@@ -51,7 +53,15 @@ def main() -> None:
         n_jobs=-1,
         random_state=42,
     )
-    model.fit(featured[FEATURE_COLUMNS], featured["demand"])
+    age_days = (
+        training_data_end - featured["observed_at"]
+    ).dt.total_seconds() / 86_400
+    sample_weight = np.exp(-np.log(2) * age_days / RECENCY_HALF_LIFE_DAYS)
+    model.fit(
+        featured[FEATURE_COLUMNS],
+        featured["demand"],
+        sample_weight=sample_weight,
+    )
 
     ARTIFACT_DIR.mkdir(parents=True, exist_ok=True)
     package = {
@@ -62,8 +72,12 @@ def main() -> None:
         "target": "demand",
         "training_rows": len(featured),
         "data_start": observations["observed_at"].min().isoformat(),
-        "data_end": observations["observed_at"].max().isoformat(),
-        "parameters": model.get_params(),
+        "data_end": training_data_end.isoformat(),
+        "parameters": {
+            **model.get_params(),
+            "sample_weight_strategy": "exponential_recency_decay",
+            "sample_weight_half_life_days": RECENCY_HALF_LIFE_DAYS,
+        },
         "prediction_floor": 0.0,
     }
     joblib.dump(package, MODEL_PATH, compress=3)

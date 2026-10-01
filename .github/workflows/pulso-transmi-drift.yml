@@ -54,6 +54,9 @@ jobs:
             echo "- Run: ${GITHUB_RUN_ID}"
             echo "- UTC: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
             echo "- Drift retrain MLflow run: ${{ steps.retrain.outputs.mlflow_run_id || 'not triggered' }}"
+            echo "- Latest API observation: $(jq -r '.data_freshness.latest_observation_at // "unknown"' artifacts/drift_report.json 2>/dev/null)"
+            echo "- API data age (hours): $(jq -r '.data_freshness.age_hours // "unknown"' artifacts/drift_report.json 2>/dev/null)"
+            echo "- Stale API data: $(jq -r '.data_freshness.stale // "unknown"' artifacts/drift_report.json 2>/dev/null)"
             echo
             echo '```json'
             cat artifacts/drift_report.json 2>/dev/null || echo '{}'

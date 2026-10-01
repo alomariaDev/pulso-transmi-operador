@@ -3,9 +3,11 @@
 ## Qué observa el pipeline
 
 `pulso-transmi-drift` corre cada hora. Calcula PSI con dos ventanas consecutivas
-de siete días para la demanda y el contexto disponible. PSI igual o superior a
-0,20 queda como alerta de distribución; los campos de contexto con cobertura
-insuficiente se declaran no disponibles, no como drift confirmado.
+de siete días para la demanda global, la demanda de cada estación y el contexto
+disponible. PSI igual o superior a 0,20 en cualquiera de esas señales activa el
+reentrenamiento; los campos con cobertura insuficiente se declaran no
+disponibles, no como drift confirmado. El reporte también incluye la edad del
+dato más reciente de la API y marca como obsoletos datos con más de 36 horas.
 
 El mismo workflow evalúa en Supabase las predicciones persistidas que ya tienen
 observación real. Reporta WAPE, accuracy (`100 × max(0, 1 − WAPE)`) y cobertura:
@@ -41,13 +43,18 @@ efímero. El flujo normal sigue entrenando con el `data_cutoff` del ciclo abiert
 y, por tanto, no usa observaciones posteriores para generar una submission.
 
 La alerta PSI detecta cambios de distribución, no demuestra por sí sola que el
-modelo nuevo mejore. El entrenamiento horario conserva la familia ExtraTrees y
-no altera retrospectivamente modelos o submissions previas. La calidad se
-vigila con los resultados oficiales por horizonte y con la evaluación que se
-persiste en Supabase. Cambios de algoritmo o parámetros requieren backtesting
-temporal, cobertura visible y mejora consistente en los cuatro horizontes;
-considera también error por estación y las seis últimas entregas. No decidir por
-un único ciclo malo ni confundir ausencia de evaluación con accuracy cero.
+modelo nuevo mejore. El entrenamiento conserva la familia ExtraTrees y pondera
+las observaciones con decaimiento exponencial y vida media de 14 días, para dar
+mayor peso a patrones recientes sin desechar el historial. En cuatro cortes
+temporales recursivos de una hora, esta variante obtuvo 84,46% frente a 84,15%
+sin ponderación; subió en 15, 30 y 45 minutos y bajó 0,18 puntos en 60 minutos.
+Por eso se conserva la receta y se monitorea cada horizonte. Estos resultados
+offline no garantizan el leaderboard y no alteran retrospectivamente
+submissions previas. La calidad se vigila con resultados oficiales y evaluación
+persistida en Supabase. Cualquier cambio futuro requiere backtesting temporal,
+cobertura visible y mejora consistente; considera también el error por estación
+y las seis últimas entregas. No decidir por un único ciclo malo ni confundir
+ausencia de evaluación con accuracy cero.
 
 La fase inicial seleccionó ExtraTrees frente a un baseline con una partición
 temporal de siete días; esa evidencia está en [`model-comparison.md`](model-comparison.md).
