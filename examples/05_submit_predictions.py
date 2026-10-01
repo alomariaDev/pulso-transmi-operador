@@ -218,17 +218,33 @@ def main(expected_cycle_id: str | None = None) -> None:
     headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
     with httpx.Client(base_url=BASE_URL, headers=headers, timeout=60.0) as client:
         cycle_response = client.get("/v1/forecast-cycles/current")
+        if cycle_response.status_code == 404:
+            detail = cycle_response.json().get("detail", {})
+            if detail == "no_open_cycle" or (
+                isinstance(detail, dict) and detail.get("code") == "no_open_cycle"
+            ):
+                print(
+                    "El ciclo se cerró antes del envío; no se envió ninguna predicción. "
+                    "La siguiente ejecución consultará el ciclo vigente."
+                )
+                return
         cycle_response.raise_for_status()
         cycle = cycle_response.json()
 
         if expected_cycle_id is not None and cycle["cycle_id"] != expected_cycle_id:
-            raise RuntimeError(
-                "El ciclo actual cambió durante el procesamiento: "
-                f"se esperaba {expected_cycle_id}, la API devolvió {cycle['cycle_id']}"
+            print(
+                "El ciclo cambió durante el entrenamiento; se omite el envío para "
+                "evitar asociar predicciones al ciclo equivocado. "
+                f"Esperado={expected_cycle_id}; actual={cycle['cycle_id']}."
             )
+            return
 
         if cycle["state"] != "open":
-            raise RuntimeError(f"El ciclo no está abierto: {cycle['state']}")
+            print(
+                f"El ciclo ya no está abierto (state={cycle['state']}); "
+                "no se envió ninguna predicción."
+            )
+            return
 
         package = joblib.load(MODEL_PATH)
         observations = pd.read_csv(
