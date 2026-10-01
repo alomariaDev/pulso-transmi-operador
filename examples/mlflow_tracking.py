@@ -18,9 +18,9 @@ def _tracking_uri() -> str | None:
     if not database_url:
         return None
     if database_url.startswith("postgres://"):
-        return database_url.replace("postgres://", "postgresql+psycopg://", 1)
+        return database_url.replace("postgres://", "postgresql+psycopg2://", 1)
     if database_url.startswith("postgresql://"):
-        return database_url.replace("postgresql://", "postgresql+psycopg://", 1)
+        return database_url.replace("postgresql://", "postgresql+psycopg2://", 1)
     return database_url
 
 
