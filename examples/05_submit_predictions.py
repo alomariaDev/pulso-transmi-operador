@@ -21,6 +21,9 @@ DATA_DIR = Path("data")
 MODEL_PATH = Path("artifacts/extra_trees_demand.joblib")
 MODEL_FAMILY_ID = "extra_trees_regressor_v1"
 FEATURE_VERSION = "lag_features_v1"
+CALIBRATION_STATION = "05100"
+CALIBRATION_CYCLES = 12
+CALIBRATION_MIN_CYCLES = 8
 
 
 def load_env_file() -> None:
@@ -84,6 +87,110 @@ def predict_targets(
     return predictions
 
 
+def calibrate_station_predictions(
+    predictions: list[dict[str, object]],
+    targets: list[dict[str, object]],
+) -> dict[str, object]:
+    """Correct the historically overpredicted station using only resolved past cycles."""
+    database_url = os.getenv("SUPABASE_DB_URL", "").strip()
+    result: dict[str, object] = {
+        "method": "none",
+        "station_id": CALIBRATION_STATION,
+        "reason": "SUPABASE_DB_URL is unavailable",
+        "applied_predictions": 0,
+    }
+    if not database_url:
+        print("Sin historial de Supabase; se conservan las predicciones originales.")
+        return result
+
+    try:
+        with psycopg.connect(database_url, connect_timeout=10, prepare_threshold=None) as connection:
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    """
+                    with resolved_runs as (
+                        select p.run_id, max(p.submitted_at) as submitted_at
+                        from pulso.predictions p
+                        join pulso.training_runs r using (run_id)
+                        join pulso.model_versions m using (model_id)
+                        join pulso.prediction_evaluation e using (prediction_id)
+                        where m.algorithm = 'ExtraTreesRegressor'
+                          and m.feature_version = %s
+                        group by p.run_id
+                        having count(*) = 48
+                           and count(e.actual_demand) = 48
+                        order by max(p.submitted_at) desc
+                        limit %s
+                    )
+                    select p.horizon,
+                           count(distinct p.run_id) as resolved_cycles,
+                           count(*) as prediction_count,
+                           sum(e.actual_demand) as actual_sum,
+                           sum(p.y_pred) as predicted_sum
+                    from resolved_runs rr
+                    join pulso.predictions p using (run_id)
+                    join pulso.prediction_evaluation e using (prediction_id)
+                    where p.station_id = %s
+                      and p.horizon in (15, 30, 45, 60)
+                    group by p.horizon
+                    """,
+                    (FEATURE_VERSION, CALIBRATION_CYCLES, CALIBRATION_STATION),
+                )
+                rows = cursor.fetchall()
+    except psycopg.Error as error:
+        result["reason"] = f"Supabase history unavailable ({type(error).__name__})"
+        print("No se pudo leer el historial; se conservan las predicciones originales.")
+        return result
+
+    factors: dict[int, float] = {}
+    evidence: dict[str, dict[str, int | float]] = {}
+    for horizon, resolved_cycles, prediction_count, actual_sum, predicted_sum in rows:
+        if resolved_cycles < CALIBRATION_MIN_CYCLES or not predicted_sum:
+            continue
+        factor = float(np.clip(float(actual_sum) / float(predicted_sum), 0.75, 1.25))
+        factors[int(horizon)] = factor
+        evidence[str(int(horizon))] = {
+            "resolved_cycles": int(resolved_cycles),
+            "prediction_count": int(prediction_count),
+            "factor": factor,
+        }
+
+    target_horizons = {
+        (str(target["station_id"]), str(target["target_at"])): int(target["horizon_minutes"])
+        for target in targets
+    }
+    applied = 0
+    if factors:
+        for prediction in predictions:
+            if str(prediction["station_id"]) != CALIBRATION_STATION:
+                continue
+            key = (str(prediction["station_id"]), str(prediction["target_at"]))
+            factor = factors.get(target_horizons.get(key, -1))
+            if factor is None:
+                continue
+            prediction["value"] = round(max(0.0, float(prediction["value"]) * factor), 3)
+            applied += 1
+
+    result = {
+        "method": "historical_station_horizon_ratio",
+        "station_id": CALIBRATION_STATION,
+        "reference_cycles": CALIBRATION_CYCLES,
+        "minimum_cycles": CALIBRATION_MIN_CYCLES,
+        "clip_range": [0.75, 1.25],
+        "horizon_factors": evidence,
+        "applied_predictions": applied,
+        "reason": None if applied else "insufficient resolved history for requested horizons",
+    }
+    if applied:
+        print(
+            f"Calibradas {applied} predicciones de la estación {CALIBRATION_STATION} "
+            "con los últimos ciclos resueltos."
+        )
+    else:
+        print("Historial insuficiente para calibrar; se conservan las predicciones originales.")
+    return result
+
+
 def persist_submission(
     cycle: dict[str, object],
     package: dict[str, object],
@@ -116,6 +223,7 @@ def persist_submission(
         "data_cutoff": str(cycle["data_cutoff"]),
         "artifact_sha256": artifact_sha256,
         "model_family": MODEL_FAMILY_ID,
+        "prediction_calibration": package.get("prediction_calibration", {"method": "none"}),
     }
     hyperparameters = json.dumps(package.get("parameters", {}), default=str)
     metrics = json.dumps(run_metrics, ensure_ascii=False, default=str)
@@ -257,6 +365,7 @@ def main(expected_cycle_id: str | None = None) -> None:
         if len(targets) != cycle["expected_predictions"]:
             raise RuntimeError("La API publicó una cantidad de targets inconsistente")
         predictions = predict_targets(observations, context, targets, package)
+        package["prediction_calibration"] = calibrate_station_predictions(predictions, targets)
         client_run_id = f"extra-trees-{cycle['cycle_id']}"
         payload = {
             "schema_version": "1.0",
