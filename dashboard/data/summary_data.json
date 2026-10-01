@@ -1,11 +1,11 @@
 {
   "metadata": {
     "title": "Pulso TransMi — MLOps Dashboard",
-    "generated_at": "2026-10-01T01:13:36.148520+00:00",
+    "generated_at": "2026-10-01T01:15:51.349991+00:00",
     "total_stations": 12,
     "total_observations": 62388,
     "latest_observation_at": "2026-09-18T08:30:00+00:00",
-    "data_age_hours": 304.7,
+    "data_age_hours": 304.8,
     "data_stale": true,
     "data_stale_after_hours": 36,
     "date_range_start": "2026-07-26T05:00:00+00:00",
@@ -21,7 +21,7 @@
       "coverage": 0.8947368421052632,
       "rank": 13,
       "eligible": true,
-      "calculated_at": "2026-10-01T01:13:37.167652Z",
+      "calculated_at": "2026-10-01T01:15:52.326209Z",
       "resolved_cycles": 133
     },
     "rolling_24h": {
