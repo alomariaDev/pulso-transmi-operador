@@ -1,46 +1,44 @@
-# Pulso TransMi — Dashboard MLOps (Bono de Visualización)
+# Dashboard MLOps de Pulso TransMi
 
-Dashboard interactivo y responsivo para el monitoreo en tiempo real de demanda, métricas de error (WAPE/Accuracy), estaciones de TransMilenio, estabilidad de variables (Drift PSI) y trazabilidad del pipeline en Supabase y GitHub Actions.
+Dashboard adaptable para móvil y escritorio que cubre los elementos del bono de
+visualización del proyecto: mapa y serie temporal por estación, distribución de
+errores, accuracy oficial acumulada y de 24 horas, drift PSI, última ejecución,
+modelo de la última submission y puesto en el leaderboard.
 
-Diseñado con un enfoque **Mobile-First** (óptimo tanto en computadores como en teléfonos celulares).
+El navegador solo descarga `data/summary_data.json`, un agregado público. Nunca
+recibe `PULSO_API_KEY`, la conexión a Supabase ni otras credenciales. La UI
+muestra antigüedad del corte y cobertura; una submission sin etiquetas no se
+presenta como un resultado evaluado.
 
----
+## Datos y ejecución local
 
-## 📱 Características
-
-* **KPIs Clave**: Accuracy acumulada ($87.21\%$), WAPE ($0.1279$), 12 estaciones oficiales y 51.840 observaciones.
-* **Mapa Interactivo de Bogotá (Leaflet)**: Visualización geoespacial con marcadores coloreados e interactivos según el nivel de demanda de cada estación.
-* **Series de Tiempo a 15 Minutos**: Comparación de demanda real vs predicciones de `ExtraTreesRegressor`.
-* **Monitor de Data Drift**: Semáforo y barras de Population Stability Index (PSI) con umbrales de alerta ($> 0.20$).
-* **MLOps Leaderboard**: Comparativa de modelos candidatos contra el Baseline estacional.
-* **Modo Oscuro / Claro**: Selector integrado de tema visual.
-* **Navegación Móvil Táctil**: Barra inferior optimizada para uso con el pulgar en celulares.
-
----
-
-## 🚀 Cómo ejecutar localmente
-
-Desde la carpeta raíz del proyecto:
+Requiere Python 3.11+, `PULSO_API_KEY` y `SUPABASE_DB_URL`. El generador lee esas
+variables del entorno o de `.env` en la raíz del repositorio (también busca el
+`.env` del SDK hermano durante desarrollo local).
 
 ```bash
-# 1. (Opcional) Actualizar datos agregados desde el SDK
-python3 dashboard/build_data.py
-
-# 2. Iniciar servidor local
-python3 -m http.server 8000 --directory dashboard
+python -m pip install -e .
+python dashboard/build_data.py
+python -m http.server 8000 --directory dashboard
 ```
 
-Abre en tu navegador (computador o celular en la misma red local):
-👉 `http://localhost:8000`
+Abre `http://localhost:8000`. El generador consulta el API de Pulso TransMi y
+el leaderboard oficial, evalúa predicciones y versiones en Supabase y lee el
+último estado de GitHub Actions. No fabrica predicciones para completar las
+gráficas.
 
----
+## Actualización automática
 
-## ☁️ Despliegue en Vercel (1 Clic)
+`.github/workflows/dashboard-data.yml` regenera el snapshot cada hora con los
+secrets ya configurados para el pipeline y el token temporal de GitHub Actions.
+Solo sube el JSON agregado. Si cambió, guarda una actualización en Git; una
+integración existente con Vercel despliega el cambio al recibir ese commit.
+También se puede ejecutar desde **Actions → pulso-transmi-dashboard → Run
+workflow**.
 
-1. Sube tu repositorio a GitHub.
-2. Ve a [vercel.com](https://vercel.com) e inicia sesión con tu cuenta de GitHub.
-3. Haz clic en **"Add New Project"** y selecciona tu repositorio `pulso-transmi-operador`.
-4. En **Root Directory**, selecciona `dashboard`.
-5. Haz clic en **Deploy**.
+Para alojar en Vercel, selecciona `dashboard` como Root Directory. El proyecto
+es estático: no requiere variables privadas ni funciones serverless en Vercel.
+`vercel.json` evita servir una versión cacheada del snapshot recién actualizado.
 
-¡Vercel te entregará una URL pública y segura (HTTPS) para compartir tu dashboard desde cualquier celular o computador!
+El dashboard puede ejecutarse y previsualizarse sin Vercel. El workflow solo
+actualiza los datos versionados; no habilita una cuenta o dominio de hosting.

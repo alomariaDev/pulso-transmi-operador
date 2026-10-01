@@ -174,6 +174,12 @@ Supabase es opcional para persistir ejecuciones, métricas, predicciones y estad
 del modelo. Vercel es opcional y corresponde al bono de visualización. Ninguna de
 las dos plataformas reemplaza el repositorio ni GitHub Actions.
 
+El dashboard de [`dashboard/`](dashboard/README.md) presenta mapa y series por
+estación, leaderboard oficial, accuracy y cobertura, drift, distribución de
+errores, versión de la última submission y la ejecución más reciente. El
+workflow `pulso-transmi-dashboard` actualiza su snapshot público cada hora sin
+exponer las credenciales del API o Supabase en el navegador.
+
 Consulta [docs/student-project.md](docs/student-project.md) para el flujo completo
 y los entregables.
 

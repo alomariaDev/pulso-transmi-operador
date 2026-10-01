@@ -8,6 +8,9 @@ dist/
 build/
 artifacts/
 data/
+!dashboard/data/
+dashboard/data/*
+!dashboard/data/summary_data.json
 *.egg-info/
 supabase/.branches/
 supabase/.temp/

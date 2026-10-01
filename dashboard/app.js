@@ -1,496 +1,321 @@
-// Global Data State
-let appData = null;
-let currentStationId = "07111"; // Ricaurte - NQS (Highest demand)
-let mapInstance = null;
-let markers = {};
-let activeCorridor = "ALL";
+let dashboardData = null;
+let selectedStationId = null;
+let stationMap = null;
+let markers = new Map();
+const charts = new Map();
 
-// Chart Instances
-let miniHourlyChart = null;
-let timeSeriesChart = null;
-let dailyTrendChart = null;
-
-// Initialize when DOM is ready
-document.addEventListener("DOMContentLoaded", async () => {
-  // Initialize Lucide Icons
-  if (window.lucide) lucide.createIcons();
-
-  // Setup Theme Toggle
-  setupThemeToggle();
-
-  // Load Data (From synchronous data.js or fetch fallback)
-  await loadDashboardData();
-
-  // Initialize Map
-  initMap();
-
-  // Initialize Visualizations
-  renderStationsSelect();
-  updateStationSpotlight(currentStationId);
-  renderModelsTable();
-  renderDriftCards();
-  renderDailyTrendChart();
+document.addEventListener("DOMContentLoaded", () => {
+  setupTheme();
+  setupTabs();
+  loadDashboard();
 });
 
-// Load Dashboard Data
-async function loadDashboardData() {
-  if (window.PULSO_DASHBOARD_DATA) {
-    appData = window.PULSO_DASHBOARD_DATA;
-  } else {
-    try {
-      const res = await fetch("data/summary_data.json");
-      if (res.ok) {
-        appData = await res.json();
-      }
-    } catch (err) {
-      console.warn("Using inline fallback data", err);
-    }
-  }
-
-  // Update KPIs
-  if (appData && appData.metadata) {
-    document.getElementById("kpi-accuracy").textContent = `${appData.metadata.accuracy}%`;
-    document.getElementById("kpi-wape").textContent = appData.metadata.wape;
-    document.getElementById("kpi-stations").textContent = appData.metadata.total_stations;
-    document.getElementById("kpi-observations").textContent = Number(appData.metadata.total_observations).toLocaleString();
+async function loadDashboard() {
+  try {
+    const response = await fetch("data/summary_data.json", { cache: "no-store" });
+    if (!response.ok) throw new Error(`No se pudo cargar el resumen (${response.status})`);
+    dashboardData = await response.json();
+    renderDashboard();
+  } catch (error) {
+    const box = document.getElementById("load-error");
+    box.textContent = `${error.message}. Ejecuta la actualización del dashboard para generar sus datos.`;
+    box.classList.remove("hidden");
+    document.getElementById("data-status").classList.add("status-error");
+    document.querySelector("#data-status span").textContent = "Sin datos";
   }
 }
 
-// Setup Theme Toggle
-function setupThemeToggle() {
-  const toggleBtn = document.getElementById("theme-toggle");
-  if (!toggleBtn) return;
-  toggleBtn.addEventListener("click", () => {
-    document.documentElement.classList.toggle("dark");
-    if (window.lucide) lucide.createIcons();
-    if (timeSeriesChart) timeSeriesChart.update();
-    if (dailyTrendChart) dailyTrendChart.update();
-    if (miniHourlyChart) miniHourlyChart.update();
+function setupTheme() {
+  const root = document.documentElement;
+  const savedTheme = localStorage.getItem("pulso-theme");
+  if (savedTheme) root.dataset.theme = savedTheme;
+  document.getElementById("theme-toggle").addEventListener("click", () => {
+    root.dataset.theme = root.dataset.theme === "dark" ? "light" : "dark";
+    localStorage.setItem("pulso-theme", root.dataset.theme);
+    charts.forEach(chart => chart.update());
+    if (stationMap) setTimeout(() => stationMap.invalidateSize(), 150);
   });
 }
 
-// Switch Navigation Tabs
-function switchTab(tabId) {
-  const overview = document.getElementById("tab-content-overview");
-  const models = document.getElementById("tab-content-models");
-  const drift = document.getElementById("tab-content-drift");
-
-  document.querySelectorAll(".tab-btn, .mobile-nav-btn").forEach(btn => {
-    if (btn.dataset.tab === tabId) {
-      btn.classList.add("active", "text-brand-500", "bg-slate-800/80");
-      btn.classList.remove("text-slate-400");
-    } else {
-      btn.classList.remove("active", "text-brand-500", "bg-slate-800/80");
-      btn.classList.add("text-slate-400");
-    }
-  });
-
-  if (tabId === "overview" || tabId === "map-stations") {
-    overview.classList.remove("hidden");
-    models.classList.add("hidden");
-    drift.classList.add("hidden");
-    if (tabId === "map-stations") {
-      document.getElementById("map").scrollIntoView({ behavior: "smooth" });
-    }
-    if (mapInstance) {
-      setTimeout(() => mapInstance.invalidateSize(), 250);
-    }
-  } else if (tabId === "models") {
-    overview.classList.add("hidden");
-    models.classList.remove("hidden");
-    drift.classList.add("hidden");
-  } else if (tabId === "drift") {
-    overview.classList.add("hidden");
-    models.classList.add("hidden");
-    drift.classList.remove("hidden");
-  }
-}
-
-// Corridor Filter Handler
-function filterCorridor(corridor) {
-  activeCorridor = corridor;
-
-  // Update button styles
-  document.querySelectorAll(".corridor-chip").forEach(chip => {
-    if (chip.dataset.corridor === corridor) {
-      chip.classList.add("bg-brand-600", "text-white");
-      chip.classList.remove("bg-slate-800", "text-slate-300");
-    } else {
-      chip.classList.remove("bg-brand-600", "text-white");
-      chip.classList.add("bg-slate-800", "text-slate-300");
-    }
-  });
-
-  // Filter Select Options
-  renderStationsSelect();
-
-  // Show/Hide Markers on Map
-  if (appData && appData.stations && mapInstance) {
-    const visibleCoords = [];
-    appData.stations.forEach(st => {
-      const marker = markers[st.station_id];
-      if (!marker) return;
-      if (corridor === "ALL" || st.corridor === corridor) {
-        if (!mapInstance.hasLayer(marker)) marker.addTo(mapInstance);
-        visibleCoords.push([st.latitude, st.longitude]);
-      } else {
-        if (mapInstance.hasLayer(marker)) mapInstance.removeLayer(marker);
-      }
+function setupTabs() {
+  document.querySelectorAll(".tab-button").forEach(button => {
+    button.addEventListener("click", () => {
+      document.querySelectorAll(".tab-button").forEach(item => item.classList.toggle("active", item === button));
+      document.querySelectorAll(".tab-panel").forEach(panel => panel.classList.add("hidden"));
+      document.getElementById(`tab-${button.dataset.tab}`).classList.remove("hidden");
+      if (stationMap) setTimeout(() => stationMap.invalidateSize(), 120);
     });
+  });
+}
 
-    if (visibleCoords.length > 0) {
-      const bounds = L.latLngBounds(visibleCoords);
-      mapInstance.fitBounds(bounds, { padding: [30, 30], maxZoom: 13 });
-    }
-  }
+function renderDashboard() {
+  renderFreshness();
+  renderKpis();
+  renderStations();
+  renderDailyTrend();
+  renderMLOps();
+  renderLeaderboard();
+  renderErrors();
+  renderDrift();
+}
 
-  // Select first available station in this corridor
-  const availableStations = appData.stations.filter(s => corridor === "ALL" || s.corridor === corridor);
-  if (availableStations.length > 0 && !availableStations.find(s => s.station_id === currentStationId)) {
-    updateStationSpotlight(availableStations[0].station_id);
+function renderFreshness() {
+  const metadata = dashboardData.metadata;
+  const status = document.getElementById("data-status");
+  status.classList.toggle("status-warning", metadata.data_stale);
+  status.classList.toggle("status-good", !metadata.data_stale);
+  status.querySelector("span").textContent = metadata.data_stale ? "Datos antiguos" : "Datos actualizados";
+  document.getElementById("refreshed-at").textContent = `Resumen: ${formatDate(metadata.generated_at)}`;
+  document.getElementById("station-count").textContent = `${metadata.total_stations} estaciones`;
+  if (metadata.data_stale) {
+    const warning = document.getElementById("data-warning");
+    warning.textContent = `La API no publica observaciones recientes. Último dato: ${formatDate(metadata.latest_observation_at)} (${formatNumber(metadata.data_age_hours, 1)} h de antigüedad). Las gráficas reflejan el último corte disponible.`;
+    warning.classList.remove("hidden");
   }
 }
 
-// Initialize Leaflet Map (100% Free OpenStreetMap - ZERO API Keys Required)
-function initMap() {
-  const mapElement = document.getElementById("map");
-  if (!mapElement || !appData || !appData.stations) return;
-
-  // Center on Bogota TransMilenio coverage
-  mapInstance = L.map("map", {
-    center: [4.648, -74.095],
-    zoom: 11,
-    zoomControl: true,
-    scrollWheelZoom: false
-  });
-
-  // 100% OpenStreetMap Standard Tiles (No token or API key required)
-  L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors | TransMilenio',
-    maxZoom: 19
-  }).addTo(mapInstance);
-
-  const allLatLngs = [];
-
-  // Add all 12 station markers
-  appData.stations.forEach(st => {
-    const isHighDemand = st.mean_demand > 400;
-    const color = isHighDemand ? "#f43f5e" : "#10b981";
-
-    const customIcon = L.divIcon({
-      className: "custom-station-icon",
-      html: `
-        <div class="relative flex items-center justify-center cursor-pointer" title="${st.station_name} (${st.corridor})">
-          <span class="animate-ping absolute inline-flex h-5 w-5 rounded-full opacity-60" style="background-color: ${color}"></span>
-          <span class="relative inline-flex rounded-full h-4 w-4 border-2 border-white shadow-lg" style="background-color: ${color}"></span>
-        </div>
-      `,
-      iconSize: [16, 16],
-      iconAnchor: [8, 8]
-    });
-
-    const marker = L.marker([st.latitude, st.longitude], { icon: customIcon }).addTo(mapInstance);
-
-    marker.bindPopup(`
-      <div class="p-1 min-w-[160px]">
-        <span class="text-[10px] font-bold uppercase tracking-wider text-rose-500 block">Troncal ${st.corridor}</span>
-        <h4 class="font-bold text-sm text-slate-900">${st.station_name}</h4>
-        <div class="mt-2 pt-1.5 border-t border-slate-200 text-xs space-y-1">
-          <div class="flex justify-between">
-            <span class="text-slate-600">Demanda Media:</span>
-            <b class="text-rose-600 font-mono">${st.mean_demand}</b>
-          </div>
-          <div class="flex justify-between">
-            <span class="text-slate-600">Demanda Pico:</span>
-            <b class="text-slate-900 font-mono">${st.max_demand}</b>
-          </div>
-        </div>
-      </div>
-    `);
-
-    marker.on("click", () => {
-      document.getElementById("station-select").value = st.station_id;
-      updateStationSpotlight(st.station_id);
-    });
-
-    markers[st.station_id] = marker;
-    allLatLngs.push([st.latitude, st.longitude]);
-  });
-
-  // Auto-fit all 12 stations into map view
-  if (allLatLngs.length > 0) {
-    mapInstance.fitBounds(L.latLngBounds(allLatLngs), { padding: [25, 25] });
-  }
+function renderKpis() {
+  const cumulative = dashboardData.leaderboard.cumulative;
+  const rolling = dashboardData.leaderboard.rolling_24h;
+  setText("kpi-cumulative", formatPercent(cumulative?.accuracy));
+  setText("kpi-cumulative-note", cumulative ? `WAPE ${formatPercent(cumulative.wape == null ? null : cumulative.wape * 100)} · cobertura ${formatPercent(cumulative.coverage == null ? null : cumulative.coverage * 100)}` : "Sin resultado oficial disponible");
+  setText("kpi-rolling", formatPercent(rolling?.accuracy));
+  setText("kpi-rolling-note", rolling ? `WAPE ${formatPercent(rolling.wape == null ? null : rolling.wape * 100)} · cobertura ${formatPercent(rolling.coverage == null ? null : rolling.coverage * 100)}` : "Sin resultado oficial disponible");
+  setText("kpi-rank", cumulative?.rank ? `#${cumulative.rank}` : "—");
+  setText("kpi-rank-note", cumulative ? `${cumulative.resolved_cycles ?? "—"} ciclos evaluados` : "Leaderboard oficial");
+  setText("kpi-coverage", formatPercent(rolling?.coverage * 100));
+  setText("kpi-coverage-note", rolling ? `Calculada ${formatDate(rolling.calculated_at)}` : "Sin cobertura calculada");
 }
 
-// Render Station Selector Options
-function renderStationsSelect() {
+function renderStations() {
+  const stations = dashboardData.stations || [];
   const select = document.getElementById("station-select");
-  if (!select || !appData || !appData.stations) return;
-
-  const filteredStations = appData.stations.filter(s => activeCorridor === "ALL" || s.corridor === activeCorridor);
-
-  select.innerHTML = filteredStations.map(st => `
-    <option value="${st.station_id}" ${st.station_id === currentStationId ? "selected" : ""}>
-      ${st.station_name} — Troncal ${st.corridor}
-    </option>
-  `).join("");
-
-  select.onchange = (e) => {
-    updateStationSpotlight(e.target.value);
-  };
+  if (!stations.length) return;
+  selectedStationId = selectedStationId || stations[0].station_id;
+  select.innerHTML = stations.map(station => `<option value="${escapeHtml(station.station_id)}">${escapeHtml(station.station_name)} · ${escapeHtml(station.corridor)}</option>`).join("");
+  select.value = selectedStationId;
+  select.addEventListener("change", () => selectStation(select.value));
+  renderMap();
+  selectStation(selectedStationId);
 }
 
-// Update Station Details & Charts
-function updateStationSpotlight(stationId) {
-  currentStationId = stationId;
-  const st = appData.stations.find(s => s.station_id === stationId) || appData.stations[0];
-
-  document.getElementById("st-badge").textContent = `ID: ${st.station_id}`;
-  document.getElementById("st-name").textContent = st.station_name;
-  document.getElementById("st-corridor").innerHTML = `
-    <i data-lucide="git-commit" class="w-3.5 h-3.5 text-slate-500"></i>
-    <span>Troncal: <b>${st.corridor}</b></span>
-  `;
-  document.getElementById("st-mean").textContent = st.mean_demand.toLocaleString();
-  document.getElementById("st-max").textContent = st.max_demand.toLocaleString();
-  document.getElementById("ts-station-name").textContent = `${st.station_name} (Troncal ${st.corridor})`;
-
-  if (window.lucide) lucide.createIcons();
-
-  // Center map on selected station
-  if (mapInstance && st.latitude && st.longitude) {
-    mapInstance.panTo([st.latitude, st.longitude], { animate: true, duration: 0.8 });
-    if (markers[stationId]) {
-      markers[stationId].openPopup();
-    }
-  }
-
-  // Render Mini Hourly Curve
-  renderMiniHourlyChart(st.hourly_curve || []);
-
-  // Render Time Series
-  renderTimeSeriesChart(stationId);
+function renderMap() {
+  const stations = dashboardData.stations || [];
+  if (!window.L || !stations.length) return;
+  stationMap = L.map("map", { scrollWheelZoom: false }).setView([4.648, -74.095], 11);
+  L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+    maxZoom: 18,
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+  }).addTo(stationMap);
+  const points = [];
+  const demands = stations.map(station => station.latest_demand).filter(Number.isFinite).sort((a, b) => a - b);
+  const median = demands[Math.floor(demands.length / 2)] || 0;
+  stations.forEach(station => {
+    const point = [Number(station.latitude), Number(station.longitude)];
+    if (!point.every(Number.isFinite)) return;
+    const value = Number(station.latest_demand || 0);
+    const color = value > median * 1.2 ? "#e0574f" : value > median * 0.7 ? "#d59b39" : "#2e9c81";
+    const marker = L.circleMarker(point, {
+      radius: 8, color: "#f8fafc", weight: 2, fillColor: color, fillOpacity: 0.95,
+    }).addTo(stationMap);
+    marker.bindPopup(`<strong>${escapeHtml(station.station_name)}</strong><br>${escapeHtml(station.corridor)} · ${escapeHtml(station.station_id)}<br>Última demanda: ${formatNumber(station.latest_demand, 0)}`);
+    marker.on("click", () => selectStation(station.station_id));
+    markers.set(station.station_id, marker);
+    points.push(point);
+  });
+  if (points.length) stationMap.fitBounds(L.latLngBounds(points), { padding: [24, 24], maxZoom: 13 });
 }
 
-// Render Mini Hourly Profile Chart
-function renderMiniHourlyChart(hourlyCurve) {
-  const ctx = document.getElementById("miniHourlyChart");
-  if (!ctx) return;
+function selectStation(stationId) {
+  const station = dashboardData.stations.find(item => item.station_id === stationId);
+  if (!station) return;
+  selectedStationId = stationId;
+  document.getElementById("station-select").value = stationId;
+  setText("station-code", station.station_id);
+  setText("station-name", station.station_name);
+  setText("station-corridor", `Troncal ${station.corridor}`);
+  setText("station-mean", formatNumber(station.mean_demand, 1));
+  setText("station-latest", formatNumber(station.latest_demand, 0));
+  setText("station-latest-at", formatDate(station.latest_at));
+  drawChart("hourly", "hourly-chart", "line", {
+    labels: Array.from({ length: 24 }, (_, hour) => `${String(hour).padStart(2, "0")}:00`),
+    datasets: [{ label: "Demanda media", data: station.hourly_curve, borderColor: "#48aa91", backgroundColor: "#48aa9128", fill: true, tension: 0.3, pointRadius: 0 }],
+  }, { compact: true });
+  const series = dashboardData.time_series?.[stationId] || { actual: [], predicted: [] };
+  const byTime = new Map();
+  series.actual.forEach(item => byTime.set(item.timestamp, { actual: item.value, predicted: null }));
+  series.predicted.forEach(item => {
+    const point = byTime.get(item.timestamp) || { actual: item.actual, predicted: null };
+    point.predicted = item.value;
+    if (item.actual !== null && item.actual !== undefined) point.actual = item.actual;
+    byTime.set(item.timestamp, point);
+  });
+  const timeline = [...byTime.entries()].sort(([a], [b]) => a.localeCompare(b));
+  drawChart("series", "station-series-chart", "line", {
+    labels: timeline.map(([time]) => formatDate(time, true)),
+    datasets: [
+      { label: "Real observada", data: timeline.map(([, point]) => point.actual), borderColor: "#56a9ce", backgroundColor: "#56a9ce18", tension: 0.25, pointRadius: 0, spanGaps: false },
+      { label: "Predicción enviada", data: timeline.map(([, point]) => point.predicted), borderColor: "#e0a849", borderDash: [5, 4], tension: 0.2, pointRadius: 2, spanGaps: false },
+    ],
+  });
+  setText("series-caption", series.predicted.length ? `${series.predicted.length} predicciones registradas; los valores reales aparecen cuando Supabase los evalúa.` : "Aún no hay predicciones de esta estación en Supabase.");
+  const marker = markers.get(stationId);
+  if (marker && stationMap) marker.openPopup();
+}
 
-  const labels = Array.from({ length: 24 }, (_, i) => `${i}h`);
-
-  if (miniHourlyChart) {
-    miniHourlyChart.destroy();
-  }
-
-  miniHourlyChart = new Chart(ctx, {
-    type: "line",
-    data: {
-      labels: labels,
-      datasets: [{
-        data: hourlyCurve,
-        borderColor: "#f43f5e",
-        backgroundColor: "rgba(244, 63, 94, 0.15)",
-        borderWidth: 2,
-        fill: true,
-        tension: 0.4,
-        pointRadius: 0
-      }]
-    },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      plugins: {
-        legend: { display: false },
-        tooltip: {
-          callbacks: {
-            label: (ctx) => `Demanda promedio: ${ctx.raw} pas/15m`
-          }
-        }
-      },
-      scales: {
-        x: {
-          grid: { display: false },
-          ticks: { color: "#94a3b8", font: { size: 9 }, maxTicksLimit: 6 }
-        },
-        y: {
-          grid: { color: "rgba(148, 163, 184, 0.1)" },
-          ticks: { color: "#94a3b8", font: { size: 9 } }
-        }
-      }
-    }
+function renderDailyTrend() {
+  const rows = dashboardData.daily_trend || [];
+  drawChart("daily", "daily-chart", "bar", {
+    labels: rows.map(row => row.date.slice(5)),
+    datasets: [{ label: "Demanda media por observación", data: rows.map(row => row.avg_demand), backgroundColor: "#557aabbb", borderRadius: 3 }],
   });
 }
 
-// Render Time Series (Validation Actual vs Predicted)
-function renderTimeSeriesChart(stationId) {
-  const ctx = document.getElementById("timeSeriesChart");
-  if (!ctx || !appData || !appData.timeline_series) return;
-
-  const seriesData = appData.timeline_series[stationId] || [];
-  const labels = seriesData.map(d => `${d.date.slice(5)} ${d.time}`);
-  const actuals = seriesData.map(d => d.actual);
-  const predicteds = seriesData.map(d => d.predicted);
-
-  if (timeSeriesChart) {
-    timeSeriesChart.destroy();
+function renderMLOps() {
+  const mlops = dashboardData.mlops || {};
+  const model = mlops.active_model;
+  if (model) {
+    setText("model-algorithm", model.algorithm);
+    setText("model-id", model.model_id);
+    setText("model-trained-at", formatDate(model.trained_at));
+    setText("model-cutoff", formatDate(model.data_cutoff));
+    setText("model-rows", formatNumber(model.training_rows, 0));
+    setText("model-commit", String(model.code_commit || "—").slice(0, 12));
+    setText("model-cycle", model.cycle_id || model.run_id);
+    const state = model.submission?.status || model.submission?.detail || "Sin recibo";
+    setText("submission-state", state);
   }
+  const action = mlops.last_pipeline_action;
+  if (action) {
+    setText("action-name", action.name || "Pipeline Pulso TransMi");
+    setText("action-time", formatDate(action.created_at));
+    setText("action-event", action.event || "—");
+    setText("action-number", action.run_number ?? "—");
+    const statusPill = document.getElementById("action-status");
+    statusPill.classList.add(action.status === "success" ? "status-good" : "status-warning");
+    statusPill.querySelector("span").textContent = action.status || "—";
+    setLink("action-link", action.html_url);
+  } else {
+    setText("action-name", "No se encontró una ejecución reciente.");
+  }
+}
 
-  timeSeriesChart = new Chart(ctx, {
-    type: "line",
-    data: {
-      labels: labels,
-      datasets: [
-        {
-          label: "Demanda Real",
-          data: actuals,
-          borderColor: "#6366f1",
-          backgroundColor: "rgba(99, 102, 241, 0.1)",
-          borderWidth: 2,
-          pointRadius: 2,
-          pointHoverRadius: 5,
-          tension: 0.3
-        },
-        {
-          label: "ExtraTrees Predicción",
-          data: predicteds,
-          borderColor: "#34d399",
-          borderDash: [4, 4],
-          borderWidth: 2,
-          pointRadius: 1,
-          pointHoverRadius: 5,
-          tension: 0.3
-        }
-      ]
-    },
+function renderLeaderboard() {
+  const leaderboard = dashboardData.leaderboard;
+  const cumulative = leaderboard.cumulative;
+  setText("leaderboard-updated", cumulative ? `Actualizado ${formatDate(cumulative.calculated_at)}` : "Sin datos oficiales");
+  const body = document.getElementById("leaderboard-body");
+  const rows = leaderboard.top || [];
+  if (!rows.length) {
+    body.innerHTML = '<tr><td colspan="4" class="empty-cell">No se pudo obtener el leaderboard oficial.</td></tr>';
+    return;
+  }
+  body.innerHTML = rows.map(row => `<tr class="${row.is_self ? "self-row" : ""}"><td>#${escapeHtml(row.rank ?? "—")}</td><td>${escapeHtml(row.name || "—")}${row.is_self ? " <span class=\"you-tag\">Tu equipo</span>" : ""}</td><td>${formatPercent(row.accuracy)}</td><td>${formatPercent(Number(row.coverage) * 100)}</td></tr>`).join("");
+}
+
+function renderErrors() {
+  const horizons = dashboardData.errors?.by_horizon || [];
+  const hasEvaluation = horizons.some(item => item.accuracy !== null);
+  drawChart("horizon", "horizon-chart", "bar", {
+    labels: horizons.map(item => `${item.horizon} min`),
+    datasets: [
+      { label: "Accuracy", data: horizons.map(item => item.accuracy), backgroundColor: "#48aa91bb", yAxisID: "y" },
+      { label: "Cobertura", data: horizons.map(item => item.coverage_pct), backgroundColor: "#557aab88", yAxisID: "y1" },
+    ],
+  }, { dualAxis: true });
+  setText("horizon-caption", hasEvaluation ? "Métricas calculadas con predicciones etiquetadas en Supabase; la cobertura indica cuántas ya tienen valor real." : "Aún no hay predicciones evaluadas. Una submission aceptada puede seguir pendiente de etiquetas.");
+
+  const errors = dashboardData.errors?.absolute_error_sample || [];
+  const buckets = makeHistogram(errors, 10);
+  drawChart("error", "error-chart", "bar", {
+    labels: buckets.labels,
+    datasets: [{ label: "Predicciones", data: buckets.counts, backgroundColor: "#d28361bb", borderRadius: 3 }],
+  });
+  setText("error-caption", errors.length ? `${formatNumber(errors.length, 0)} errores absolutos con etiqueta real.` : "Sin errores calculables todavía: no hay etiquetas reales disponibles.");
+
+  const stationRows = dashboardData.errors?.by_station || [];
+  const body = document.getElementById("station-errors-body");
+  if (!stationRows.length) {
+    body.innerHTML = '<tr><td colspan="6" class="empty-cell">Aún no hay evaluaciones etiquetadas.</td></tr>';
+  } else {
+    body.innerHTML = stationRows.map(row => {
+      const station = dashboardData.stations.find(item => item.station_id === row.station_id);
+      return `<tr><td>${escapeHtml(station?.station_name || row.station_id)}</td><td>${formatNumber(row.prediction_count, 0)}</td><td>${formatNumber(row.resolved_count, 0)}</td><td>${formatPercent(row.coverage_pct)}</td><td>${formatPercent(row.wape === null ? null : row.wape * 100)}</td><td>${formatPercent(row.accuracy)}</td></tr>`;
+    }).join("");
+  }
+}
+
+function renderDrift() {
+  const drift = dashboardData.drift || [];
+  const grid = document.getElementById("drift-grid");
+  const available = drift.filter(item => item.psi !== null && item.psi !== undefined);
+  document.getElementById("drift-empty").classList.toggle("hidden", drift.length > 0);
+  if (!drift.length) return;
+  const last = [...drift].sort((a, b) => String(b.observed_at).localeCompare(String(a.observed_at)))[0];
+  setText("drift-window", `PSI · umbral 0,20 · actualizado ${formatDate(last.observed_at)}`);
+  grid.innerHTML = drift.map(item => {
+    const psi = item.psi;
+    const unavailableReason = item.details?.reason_unavailable;
+    const warning = item.status === "warning" || (psi !== null && psi >= item.threshold);
+    const status = unavailableReason ? "No disponible" : warning ? "Alerta" : "Estable";
+    const width = psi === null ? 0 : Math.min(100, Math.max(3, psi / item.threshold * 45));
+    return `<article class="drift-card ${warning ? "drift-alert" : ""}"><div class="drift-card-top"><strong>${escapeHtml(item.feature)}</strong><span class="small-badge ${warning ? "badge-warning" : "badge-good"}">${status}</span></div><p class="drift-value">${psi === null ? "—" : Number(psi).toFixed(3)} <small>/ ${Number(item.threshold).toFixed(2)}</small></p>${psi === null ? `<p class="muted-text">${escapeHtml(unavailableReason || "Métrica no disponible")}</p>` : `<div class="progress-track"><span style="width:${width}%"></span></div>`}</article>`;
+  }).join("");
+}
+
+function makeHistogram(values, count) {
+  if (!values.length) return { labels: ["Sin datos"], counts: [0] };
+  const max = Math.max(...values);
+  const min = Math.min(...values);
+  const step = (max - min) / count || 1;
+  const counts = Array(count).fill(0);
+  values.forEach(value => counts[Math.min(count - 1, Math.floor((value - min) / step))]++);
+  return { labels: counts.map((_, index) => `${Math.round(min + step * index)}–${Math.round(min + step * (index + 1))}`), counts };
+}
+
+function drawChart(key, canvasId, type, data, options = {}) {
+  const canvas = document.getElementById(canvasId);
+  if (!canvas || !window.Chart) return;
+  charts.get(key)?.destroy();
+  const dark = document.documentElement.dataset.theme === "dark";
+  const tick = dark ? "#aab6c3" : "#667381";
+  const grid = dark ? "#ffffff12" : "#10192312";
+  const scales = {
+    x: { grid: { display: false }, ticks: { color: tick, maxTicksLimit: 8 } },
+    y: { beginAtZero: true, grid: { color: grid }, ticks: { color: tick } },
+  };
+  if (options.dualAxis) {
+    scales.y1 = { position: "right", min: 0, max: 100, grid: { drawOnChartArea: false }, ticks: { color: tick, callback: value => `${value}%` } };
+    data.datasets[0].backgroundColor = "#48aa91bb";
+  }
+  charts.set(key, new Chart(canvas, {
+    type,
+    data,
     options: {
       responsive: true,
       maintainAspectRatio: false,
       interaction: { mode: "index", intersect: false },
-      plugins: {
-        legend: { display: false },
-        tooltip: {
-          padding: 10,
-          backgroundColor: "rgba(15, 23, 42, 0.9)",
-          titleColor: "#f8fafc",
-          bodyColor: "#cbd5e1"
-        }
-      },
-      scales: {
-        x: {
-          grid: { display: false },
-          ticks: { color: "#94a3b8", font: { size: 10 }, maxTicksLimit: 8 }
-        },
-        y: {
-          grid: { color: "rgba(148, 163, 184, 0.1)" },
-          ticks: { color: "#94a3b8", font: { size: 10 } }
-        }
-      }
-    }
-  });
-}
-
-// Render Daily Historical Aggregated Trend Chart
-function renderDailyTrendChart() {
-  const ctx = document.getElementById("dailyTrendChart");
-  if (!ctx || !appData || !appData.daily_trend) return;
-
-  const labels = appData.daily_trend.map(d => d.date.slice(5));
-  const values = appData.daily_trend.map(d => d.avg_demand);
-
-  if (dailyTrendChart) {
-    dailyTrendChart.destroy();
-  }
-
-  dailyTrendChart = new Chart(ctx, {
-    type: "bar",
-    data: {
-      labels: labels,
-      datasets: [{
-        label: "Demanda Media Diaria",
-        data: values,
-        backgroundColor: "rgba(245, 158, 11, 0.65)",
-        hoverBackgroundColor: "rgba(245, 158, 11, 0.9)",
-        borderRadius: 4
-      }]
+      plugins: { legend: { display: type === "line" || data.datasets.length > 1, labels: { color: tick, usePointStyle: true, boxWidth: 8 } } },
+      scales,
     },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      plugins: {
-        legend: { display: false },
-        tooltip: {
-          callbacks: {
-            label: (ctx) => `Demanda media del sistema: ${ctx.raw} pas/15m`
-          }
-        }
-      },
-      scales: {
-        x: {
-          grid: { display: false },
-          ticks: { color: "#94a3b8", font: { size: 9 }, maxTicksLimit: 12 }
-        },
-        y: {
-          grid: { color: "rgba(148, 163, 184, 0.1)" },
-          ticks: { color: "#94a3b8", font: { size: 9 } }
-        }
-      }
-    }
-  });
+  }));
 }
 
-// Render Models Leaderboard Table
-function renderModelsTable() {
-  const tbody = document.getElementById("models-table-body");
-  if (!tbody || !appData || !appData.models_leaderboard) return;
-
-  tbody.innerHTML = appData.models_leaderboard.map(m => `
-    <tr class="hover:bg-slate-800/40 transition">
-      <td class="py-3 px-4 font-bold text-slate-300">#${m.rank}</td>
-      <td class="py-3 px-4 font-semibold text-white flex items-center space-x-2">
-        <span class="w-2.5 h-2.5 rounded-full bg-${m.color}-400 inline-block"></span>
-        <span>${m.model_name}</span>
-      </td>
-      <td class="py-3 px-4 font-mono text-slate-200">${m.wape.toFixed(4)}</td>
-      <td class="py-3 px-4 font-bold text-emerald-400">${m.accuracy.toFixed(2)}%</td>
-      <td class="py-3 px-4 text-slate-400">${m.training_time}</td>
-      <td class="py-3 px-4 text-slate-400">${m.features_count}</td>
-      <td class="py-3 px-4">
-        <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-${m.color}-500/10 text-${m.color}-400 border border-${m.color}-500/20">
-          ${m.status}
-        </span>
-      </td>
-    </tr>
-  `).join("");
+function setText(id, value) { document.getElementById(id).textContent = value ?? "—"; }
+function formatPercent(value) { return value === null || value === undefined || !Number.isFinite(Number(value)) ? "—" : `${Number(value).toFixed(2)}%`; }
+function formatNumber(value, digits = 0) { return value === null || value === undefined || !Number.isFinite(Number(value)) ? "—" : Number(value).toLocaleString("es-CO", { maximumFractionDigits: digits, minimumFractionDigits: digits }); }
+function formatDate(value, timeOnly = false) {
+  if (!value) return "—";
+  const date = new Date(value);
+  if (Number.isNaN(date.valueOf())) return String(value);
+  return new Intl.DateTimeFormat("es-CO", timeOnly ? { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" } : { dateStyle: "medium", timeStyle: "short", timeZone: "America/Bogota" }).format(date);
 }
-
-// Render Drift Indicator Cards
-function renderDriftCards() {
-  const container = document.getElementById("drift-cards-grid");
-  if (!container || !appData || !appData.drift_metrics) return;
-
-  container.innerHTML = appData.drift_metrics.map(d => `
-    <div class="bg-slate-800/50 border border-slate-700/60 rounded-xl p-4 flex flex-col justify-between">
-      <div>
-        <div class="flex items-center justify-between mb-2">
-          <span class="text-xs font-mono text-slate-400">${d.category}</span>
-          <span class="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-            <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 mr-1.5"></span>
-            ${d.status}
-          </span>
-        </div>
-        <h4 class="font-bold text-sm text-white font-mono mb-2">${d.feature}</h4>
-      </div>
-      <div>
-        <div class="flex justify-between text-xs text-slate-400 mb-1">
-          <span>PSI Calculado: <b class="text-slate-200 font-mono">${d.psi.toFixed(3)}</b></span>
-          <span>Umbral: 0.20</span>
-        </div>
-        <div class="w-full bg-slate-700/60 rounded-full h-2 overflow-hidden">
-          <div class="bg-emerald-400 h-2 rounded-full transition-all duration-500" style="width: ${(d.psi / d.threshold) * 100}%"></div>
-        </div>
-      </div>
-    </div>
-  `).join("");
+function setLink(id, href) {
+  const link = document.getElementById(id);
+  if (!href) return;
+  link.href = href;
+  link.classList.remove("hidden");
+}
+function escapeHtml(value) {
+  return String(value ?? "").replace(/[&<>"']/g, character => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[character]);
 }
