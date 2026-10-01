@@ -44,18 +44,22 @@ flujo normal sigue entrenando con el `data_cutoff` del ciclo abierto y, por
 tanto, no usa observaciones posteriores para generar una submission.
 
 La alerta PSI detecta cambios de distribución, no demuestra por sí sola que el
-modelo nuevo mejore. El entrenamiento conserva la familia ExtraTrees y pondera
-las observaciones con decaimiento exponencial y vida media de 14 días, para dar
-mayor peso a patrones recientes sin desechar el historial. En cuatro cortes
-temporales recursivos de una hora, esta variante obtuvo 84,46% frente a 84,15%
-sin ponderación; subió en 15, 30 y 45 minutos y bajó 0,18 puntos en 60 minutos.
-Por eso se conserva la receta y se monitorea cada horizonte. Estos resultados
-offline no garantizan el leaderboard y no alteran retrospectivamente
-submissions previas. La calidad se vigila con resultados oficiales y evaluación
-persistida en Supabase. Cualquier cambio futuro requiere backtesting temporal,
-cobertura visible y mejora consistente; considera también el error por estación
-y las seis últimas entregas. No decidir por un único ciclo malo ni confundir
-ausencia de evaluación con accuracy cero.
+modelo nuevo mejore. Los modelos se ponderan con decaimiento exponencial y vida
+media de 14 días, para dar mayor peso a patrones recientes sin desechar el
+historial. ExtraTrees mantiene la predicción recursiva para 15 y 30 minutos.
+Para 45 y 60 minutos se entrenan modelos HistGradientBoosting separados que
+predicen directamente desde las features conocidas al cutoff; las etiquetas de
+entrenamiento solo se usan cuando su timestamp también es anterior o igual al
+cutoff. Esto evita propagar el error de una predicción a la siguiente.
+
+En cuatro cortes temporales recientes (18 de septiembre, 17:00, 19:00, 21:00 y
+22:00 UTC; 192 predicciones), el backtest obtuvo 62,73% con ExtraTrees recursivo
+en los cuatro horizontes. La combinación desplegada obtuvo 67,53%: 84,10% y
+70,36% en 15 y 30 minutos, y 58,29% y 55,99% en 45 y 60 minutos. Estos cortes
+son una señal inicial de mejora, no evidencia suficiente para garantizar 80% en
+el leaderboard. Se vigilan el accuracy oficial, la cobertura, cada horizonte y
+los seis ciclos más recientes; la falta de etiquetas se reporta como pendiente,
+no como accuracy cero. Ninguna submission ya aceptada se reescribe.
 
 La fase inicial seleccionó ExtraTrees frente a un baseline con una partición
 temporal de siete días; esa evidencia está en [`model-comparison.md`](model-comparison.md).

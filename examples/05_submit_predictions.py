@@ -41,6 +41,7 @@ def predict_targets(
 ) -> list[dict[str, object]]:
     working_observations = observations.copy()
     working_context = context.copy()
+    known_features = build_features(working_observations, working_context)
     values_by_key: dict[tuple[str, str], float] = {}
 
     target_times = sorted({target["target_at"] for target in targets})
@@ -69,6 +70,31 @@ def predict_targets(
         generated = target_rows.copy()
         generated["demand"] = values
         working_observations = pd.concat([working_observations, generated], ignore_index=True)
+
+    direct_models = package.get("direct_models", {})
+    for target in targets:
+        horizon = int(target["horizon_minutes"])
+        direct_model = direct_models.get(horizon)
+        if direct_model is None:
+            continue
+        station_id = str(target["station_id"])
+        target_at = pd.Timestamp(str(target["target_at"]))
+        origin_at = target_at - pd.Timedelta(minutes=horizon)
+        row = known_features.loc[
+            (known_features["observed_at"] == origin_at)
+            & (known_features["station_id"] == station_id)
+        ].copy()
+        if row.empty:
+            raise RuntimeError(
+                f"No existe la fila de origen {origin_at.isoformat()} para "
+                f"la estación {station_id} y horizonte {horizon}."
+            )
+        row["station_code"] = row["station_id"].map(package["station_codes"])
+        value = max(
+            package.get("prediction_floor", 0.0),
+            float(direct_model.predict(row[package["feature_columns"]])[0]),
+        )
+        values_by_key[(station_id, str(target["target_at"]))] = round(value, 3)
 
     predictions = [
         {
@@ -156,7 +182,13 @@ def persist_submission(
                 values (%s, %s, %s, %s, %s::jsonb)
                 on conflict (model_id) do nothing
                 """,
-                (model_id, "ExtraTreesRegressor", FEATURE_VERSION, code_commit, hyperparameters),
+                (
+                    model_id,
+                    str(package.get("algorithm", "ExtraTreesRegressor")),
+                    str(package.get("feature_version", FEATURE_VERSION)),
+                    code_commit,
+                    hyperparameters,
+                ),
             )
             cursor.execute(
                 """
@@ -264,7 +296,7 @@ def main(expected_cycle_id: str | None = None) -> None:
             "client_run_id": client_run_id,
             "data_cutoff": cycle["data_cutoff"],
             "model": {
-                "version": "extra_trees_regressor_v1",
+                "version": str(package.get("model_version", "extra_trees_regressor_v1")),
                 "trained_at": datetime.fromtimestamp(MODEL_PATH.stat().st_mtime, timezone.utc).isoformat(),
                 "training_data_end": package["data_end"],
                 "git_commit": None,

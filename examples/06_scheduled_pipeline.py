@@ -8,6 +8,7 @@ from pathlib import Path
 
 import httpx
 import pandas as pd
+import psycopg
 
 from pulso_transmi import PulsoTransmiClient
 
@@ -51,6 +52,31 @@ def current_cycle(api_key: str) -> dict | None:
 
 def run(command: list[str]) -> None:
     subprocess.run(command, check=True)
+
+
+def cycle_already_submitted(cycle_id: str) -> bool:
+    database_url = os.getenv("SUPABASE_DB_URL", "").strip()
+    if not database_url:
+        return False
+    try:
+        with psycopg.connect(database_url, connect_timeout=10, prepare_threshold=None) as connection:
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    """
+                    select status, metrics->>'submission_state'
+                    from pulso.training_runs
+                    where run_id = %s
+                    """,
+                    (f"extra-trees-{cycle_id}",),
+                )
+                row = cursor.fetchone()
+        return bool(row and row[0] == "succeeded" and row[1] in {"accepted", "already_submitted"})
+    except psycopg.Error as error:
+        print(
+            "No se pudo comprobar el recibo persistido "
+            f"({type(error).__name__}); se continúa con la protección de idempotencia de la API."
+        )
+        return False
 
 
 def process_cycle(cycle: dict, api_key: str) -> None:
@@ -107,6 +133,14 @@ def main() -> None:
     cycle = current_cycle(api_key)
     if cycle is None:
         print("No hay ciclo abierto; la próxima ejecución programada volverá a consultar.")
+        return
+
+    cycle_id = str(cycle.get("cycle_id", "desconocido"))
+    if cycle_already_submitted(cycle_id):
+        print(
+            f"El ciclo {cycle_id} ya tiene una submission aceptada; "
+            "se omite el reentrenamiento repetido."
+        )
         return
 
     process_cycle(cycle, api_key)

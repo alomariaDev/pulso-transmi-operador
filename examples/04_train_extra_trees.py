@@ -6,7 +6,7 @@ from pathlib import Path
 import joblib
 import numpy as np
 import pandas as pd
-from sklearn.ensemble import ExtraTreesRegressor
+from sklearn.ensemble import ExtraTreesRegressor, HistGradientBoostingRegressor
 
 from model_features import build_features
 from mlflow_tracking import has_drift_run_for_cutoff, log_training_run
@@ -30,6 +30,7 @@ FEATURE_COLUMNS = [
     "is_weekend",
 ]
 RECENCY_HALF_LIFE_DAYS = 14.0
+DIRECT_HORIZONS_MINUTES = (45, 60)
 
 
 def main() -> None:
@@ -70,20 +71,62 @@ def main() -> None:
         sample_weight=sample_weight,
     )
 
+    direct_models: dict[int, HistGradientBoostingRegressor] = {}
+    direct_model_training_rows: dict[str, int] = {}
+    for horizon in DIRECT_HORIZONS_MINUTES:
+        steps = horizon // 15
+        target = featured.groupby("station_id", sort=False)["demand"].shift(-steps)
+        eligible = (
+            target.notna()
+            & (featured["observed_at"] + pd.Timedelta(minutes=horizon) <= training_data_end)
+        )
+        direct_training = featured.loc[eligible]
+        direct_age_days = (
+            training_data_end - direct_training["observed_at"]
+        ).dt.total_seconds() / 86_400
+        direct_sample_weight = np.exp(
+            -np.log(2) * direct_age_days / RECENCY_HALF_LIFE_DAYS
+        )
+        direct_model = HistGradientBoostingRegressor(
+            max_iter=250,
+            learning_rate=0.08,
+            max_leaf_nodes=31,
+            l2_regularization=1.0,
+            random_state=42,
+        )
+        direct_model.fit(
+            direct_training[FEATURE_COLUMNS],
+            target.loc[eligible],
+            sample_weight=direct_sample_weight,
+        )
+        direct_models[horizon] = direct_model
+        direct_model_training_rows[str(horizon)] = len(direct_training)
+
     ARTIFACT_DIR.mkdir(parents=True, exist_ok=True)
     package = {
         "model": model,
-        "model_name": "extra_trees_regressor",
+        "direct_models": direct_models,
+        "model_name": "extra_trees_hybrid_direct_45_60",
+        "model_version": "extra_trees_hybrid_direct_h45_h60_v1",
+        "algorithm": "ExtraTreesRegressor+HistGradientBoostingRegressor",
+        "feature_version": "lag_features_direct_h45_h60_v1",
         "feature_columns": FEATURE_COLUMNS,
         "station_codes": station_codes,
         "target": "demand",
         "training_rows": len(featured),
+        "direct_model_training_rows": direct_model_training_rows,
         "data_start": observations["observed_at"].min().isoformat(),
         "data_end": training_data_end.isoformat(),
         "parameters": {
             **model.get_params(),
             "sample_weight_strategy": "exponential_recency_decay",
             "sample_weight_half_life_days": RECENCY_HALF_LIFE_DAYS,
+            "direct_model_algorithm": "HistGradientBoostingRegressor",
+            "direct_horizons_minutes": list(DIRECT_HORIZONS_MINUTES),
+            "direct_max_iter": 250,
+            "direct_learning_rate": 0.08,
+            "direct_max_leaf_nodes": 31,
+            "direct_l2_regularization": 1.0,
         },
         "prediction_floor": 0.0,
     }
@@ -102,6 +145,7 @@ def main() -> None:
     print(f"Modelo guardado en: {MODEL_PATH}")
     print(f"Filas de entrenamiento: {len(featured):,}")
     print(f"Features: {len(FEATURE_COLUMNS)}")
+    print("Direct horizons: 45 and 60 minutes")
     print(f"Tamaño: {MODEL_PATH.stat().st_size:,} bytes")
     if mlflow_run_id:
         print(f"MLflow run: {mlflow_run_id}")

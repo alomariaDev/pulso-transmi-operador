@@ -67,12 +67,17 @@ def log_training_run(
         mlflow.set_tags(
             {
                 "model_family": "extra_trees_regressor_v1",
+                "model_version": str(package.get("model_version", "extra_trees_regressor_v1")),
+                "model_algorithm": str(package.get("algorithm", "ExtraTreesRegressor")),
                 "training_trigger": trigger,
                 "data_cutoff": data_cutoff,
                 "data_start": str(package["data_start"]),
                 "code_commit": os.getenv("GITHUB_SHA", "local"),
                 "artifact_sha256": artifact_sha256,
-                "feature_version": "lag_features_v1",
+                "feature_version": str(package.get("feature_version", "lag_features_v1")),
+                "direct_horizons_minutes": ",".join(
+                    str(horizon) for horizon in package.get("direct_models", {})
+                ),
             }
         )
         params = package.get("parameters", {})
