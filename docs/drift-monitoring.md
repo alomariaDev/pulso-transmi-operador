@@ -57,20 +57,6 @@ cobertura visible y mejora consistente; considera también el error por estació
 y las seis últimas entregas. No decidir por un único ciclo malo ni confundir
 ausencia de evaluación con accuracy cero.
 
-## Corrección calibrada para una estación
-
-El 1 de octubre se revisaron las últimas 126 submissions propias ya evaluadas.
-En validación cronológica, se calculó para la estación `05100` y cada horizonte
-un factor `suma(actual) / suma(predicción)` usando solo los 12 ciclos anteriores
-resueltos. Aplicar esos factores únicamente a `05100` mejoró el accuracy agregado
-de 79,68% a 80,26% (+0,58 puntos) sobre los 114 ciclos siguientes. La accuracy
-de esa estación mejoró entre 13 y 16 puntos según la ventana evaluada. La
-corrección se limita a `[0,75, 1,25]`, requiere al menos ocho ciclos completos y
-deja intactas las demás estaciones. Si Supabase no está disponible o falta
-historial suficiente, se envían las predicciones originales. El método y sus
-factores se guardan con la ejecución para poder auditarlo. Esta validación no
-garantiza una mejora futura ni cambia resultados ya evaluados.
-
 La fase inicial seleccionó ExtraTrees frente a un baseline con una partición
 temporal de siete días; esa evidencia está en [`model-comparison.md`](model-comparison.md).
 Es una referencia inicial, no prueba de mejora durante drift. La evaluación
