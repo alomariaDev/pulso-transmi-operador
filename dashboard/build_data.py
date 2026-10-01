@@ -376,12 +376,20 @@ def main() -> None:
     output_path = DASHBOARD_DIR / "data" / "summary_data.json"
     output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+
+    data_js_path = DASHBOARD_DIR / "data.js"
+    data_js_path.write_text(
+        "window.PULSO_DASHBOARD_DATA = " + json.dumps(payload, ensure_ascii=False, indent=2) + ";\n",
+        encoding="utf-8",
+    )
+
     print(
         f"Dashboard snapshot: {output_path} "
         f"({output_path.stat().st_size:,} bytes, "
         f"{payload['metadata']['total_stations']} estaciones, "
         f"{payload['metadata']['total_observations']:,} observaciones)"
     )
+    print(f"Static bootstrap: {data_js_path} ({data_js_path.stat().st_size:,} bytes)")
 
 
 if __name__ == "__main__":

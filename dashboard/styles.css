@@ -64,9 +64,15 @@ h1, h2, h3, p { margin-top: 0; }
 h1 { margin-bottom: 6px; font-size: clamp(25px, 3vw, 34px); line-height: 1.16; letter-spacing: -.035em; }
 .subtitle { margin: 0; color: var(--muted); font-size: 13px; }
 .nav-tabs { display: flex; gap: 4px; padding: 4px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); }
-.tab-button { padding: 9px 13px; border: 0; border-radius: 8px; color: var(--muted); background: transparent; cursor: pointer; font-size: 12px; white-space: nowrap; }
-.tab-button:hover, .tab-button.active { color: var(--text); background: var(--surface-raised); }
+.tab-button, .mobile-nav-item { padding: 9px 13px; border: 0; border-radius: 8px; color: var(--muted); background: transparent; cursor: pointer; font-size: 12px; white-space: nowrap; }
+.tab-button:hover, .tab-button.active, .mobile-nav-item.active { color: var(--text); background: var(--surface-raised); }
 .tab-button.active { box-shadow: inset 0 0 0 1px var(--line); }
+.corridor-filters { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 12px; }
+.corridor-filter { padding: 7px 10px; border: 1px solid var(--line); border-radius: 999px; background: var(--surface-raised); color: var(--muted); cursor: pointer; font-size: 10px; transition: all .15s ease; }
+.corridor-filter.active { background: color-mix(in srgb, var(--green), transparent 82%); border-color: color-mix(in srgb, var(--green), transparent 65%); color: var(--text); }
+.mobile-nav { position: sticky; bottom: 10px; z-index: 20; display: none; gap: 8px; margin: 10px auto 0; padding: 8px; width: min(95vw, 420px); border: 1px solid var(--line); border-radius: 16px; background: rgba(15, 23, 42, 0.82); backdrop-filter: blur(8px); box-shadow: 0 12px 35px rgba(15, 23, 42, 0.18); }
+.mobile-nav-item { flex: 1; padding: 10px 6px; border-radius: 10px; }
+.mobile-nav-item.active { background: rgba(94, 234, 212, 0.12); color: var(--text); }
 
 .notice { margin: 0 0 16px; padding: 12px 15px; border: 1px solid var(--line); border-radius: 12px; font-size: 12px; line-height: 1.5; }
 .warning { color: var(--amber); background: color-mix(in srgb, var(--amber), transparent 92%); border-color: color-mix(in srgb, var(--amber), transparent 65%); }
@@ -159,6 +165,7 @@ tbody tr:last-child td { border-bottom: 0; }
   .page-shell { padding: 23px 14px 18px; }
   .nav-tabs { width: 100%; overflow-x: auto; }
   .tab-button { flex: 1; padding: 9px 8px; }
+  .mobile-nav { display: flex; }
   .kpi-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 9px; }
   .kpi-card { min-height: 112px; padding: 13px 14px; }
   .kpi-card strong { font-size: 23px; }

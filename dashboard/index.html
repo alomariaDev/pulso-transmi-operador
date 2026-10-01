@@ -6,6 +6,24 @@
     <meta name="theme-color" content="#101923">
     <meta name="description" content="Monitoreo de demanda, accuracy, drift y operación MLOps de Pulso TransMi.">
     <title>Pulso TransMi · Dashboard MLOps</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = {
+        darkMode: 'class',
+        theme: {
+          extend: {
+            colors: {
+              brand: {
+                50: '#eef8ff',
+                500: '#4f8ef7',
+                600: '#2f6fe5',
+                700: '#2258be'
+              }
+            }
+          }
+        }
+      };
+    </script>
     <link rel="preconnect" href="https://unpkg.com">
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
     <link rel="stylesheet" href="styles.css">
@@ -54,6 +72,7 @@
               <div><p class="eyebrow">DEMANDA POR ESTACIÓN</p><h2>Red de estaciones</h2></div>
               <span id="station-count" class="small-badge">— estaciones</span>
             </div>
+            <div id="corridor-filters" class="corridor-filters" aria-label="Filtros de troncal"></div>
             <div id="map" aria-label="Mapa de estaciones TransMilenio"></div>
           </article>
           <article class="panel station-panel">
@@ -145,6 +164,13 @@
       <footer class="page-footer"><span>Datos agregados por GitHub Actions · no se exponen credenciales del API ni de Supabase.</span><a href="https://github.com/alomariaDev/pulso-transmi-operador" target="_blank" rel="noreferrer">Código y documentación ↗</a></footer>
     </main>
 
+    <nav class="mobile-nav" aria-label="Navegación móvil">
+      <button type="button" class="mobile-nav-item active" data-tab="overview">Resumen</button>
+      <button type="button" class="mobile-nav-item" data-tab="models">Modelos</button>
+      <button type="button" class="mobile-nav-item" data-tab="drift">Drift</button>
+    </nav>
+
+    <script src="data.js"></script>
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
     <script src="app.js"></script>

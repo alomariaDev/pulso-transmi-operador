@@ -1,7 +1,9 @@
 let dashboardData = null;
 let selectedStationId = null;
 let stationMap = null;
+let markerLayer = null;
 let markers = new Map();
+let activeCorridor = "Todas";
 const charts = new Map();
 
 document.addEventListener("DOMContentLoaded", () => {
@@ -12,6 +14,11 @@ document.addEventListener("DOMContentLoaded", () => {
 
 async function loadDashboard() {
   try {
+    if (window.PULSO_DASHBOARD_DATA) {
+      dashboardData = window.PULSO_DASHBOARD_DATA;
+      renderDashboard();
+      return;
+    }
     const response = await fetch("data/summary_data.json", { cache: "no-store" });
     if (!response.ok) throw new Error(`No se pudo cargar el resumen (${response.status})`);
     dashboardData = await response.json();
@@ -38,11 +45,13 @@ function setupTheme() {
 }
 
 function setupTabs() {
-  document.querySelectorAll(".tab-button").forEach(button => {
+  document.querySelectorAll("[data-tab]").forEach(button => {
     button.addEventListener("click", () => {
-      document.querySelectorAll(".tab-button").forEach(item => item.classList.toggle("active", item === button));
+      const tab = button.dataset.tab;
+      document.querySelectorAll("[data-tab]").forEach(item => item.classList.toggle("active", item === button));
       document.querySelectorAll(".tab-panel").forEach(panel => panel.classList.add("hidden"));
-      document.getElementById(`tab-${button.dataset.tab}`).classList.remove("hidden");
+      const panel = document.getElementById(`tab-${tab}`);
+      if (panel) panel.classList.remove("hidden");
       if (stationMap) setTimeout(() => stationMap.invalidateSize(), 120);
     });
   });
@@ -51,6 +60,7 @@ function setupTabs() {
 function renderDashboard() {
   renderFreshness();
   renderKpis();
+  renderCorridorFilters();
   renderStations();
   renderDailyTrend();
   renderMLOps();
@@ -87,14 +97,39 @@ function renderKpis() {
   setText("kpi-coverage-note", rolling ? `Calculada ${formatDate(rolling.calculated_at)}` : "Sin cobertura calculada");
 }
 
+function renderCorridorFilters() {
+  const stations = dashboardData?.stations || [];
+  const filters = document.getElementById("corridor-filters");
+  if (!filters || !stations.length) return;
+  const corridors = ["Todas", ...new Set(stations.map(item => item.corridor).filter(Boolean))];
+  filters.innerHTML = corridors.map(corridor => `
+    <button
+      type="button"
+      class="corridor-filter ${activeCorridor === corridor ? "active" : ""}"
+      data-corridor="${escapeHtml(corridor)}"
+    >${escapeHtml(corridor)}</button>
+  `).join("");
+  filters.querySelectorAll(".corridor-filter").forEach(button => {
+    button.addEventListener("click", () => {
+      activeCorridor = button.dataset.corridor;
+      renderCorridorFilters();
+      renderMap();
+    });
+  });
+}
+
 function renderStations() {
   const stations = dashboardData.stations || [];
   const select = document.getElementById("station-select");
   if (!stations.length) return;
-  selectedStationId = selectedStationId || stations[0].station_id;
+  const visible = stations.filter(station => activeCorridor === "Todas" || station.corridor === activeCorridor);
+  const nextStation = visible[0] || stations[0];
+  selectedStationId = selectedStationId && visible.some(station => station.station_id === selectedStationId)
+    ? selectedStationId
+    : nextStation.station_id;
   select.innerHTML = stations.map(station => `<option value="${escapeHtml(station.station_id)}">${escapeHtml(station.station_name)} · ${escapeHtml(station.corridor)}</option>`).join("");
   select.value = selectedStationId;
-  select.addEventListener("change", () => selectStation(select.value));
+  select.onchange = () => selectStation(select.value);
   renderMap();
   selectStation(selectedStationId);
 }
@@ -102,28 +137,52 @@ function renderStations() {
 function renderMap() {
   const stations = dashboardData.stations || [];
   if (!window.L || !stations.length) return;
-  stationMap = L.map("map", { scrollWheelZoom: false }).setView([4.648, -74.095], 11);
-  L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-    maxZoom: 18,
-    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
-  }).addTo(stationMap);
+  const visibleStations = stations.filter(station => activeCorridor === "Todas" || station.corridor === activeCorridor);
+  if (!stationMap) {
+    stationMap = L.map("map", { scrollWheelZoom: false }).setView([4.648, -74.095], 11);
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      maxZoom: 18,
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+    }).addTo(stationMap);
+    markerLayer = L.layerGroup().addTo(stationMap);
+  }
+
+  markerLayer.clearLayers();
+  markers = new Map();
+
   const points = [];
-  const demands = stations.map(station => station.latest_demand).filter(Number.isFinite).sort((a, b) => a - b);
-  const median = demands[Math.floor(demands.length / 2)] || 0;
-  stations.forEach(station => {
+  const threshold = 400;
+  visibleStations.forEach(station => {
     const point = [Number(station.latitude), Number(station.longitude)];
     if (!point.every(Number.isFinite)) return;
     const value = Number(station.latest_demand || 0);
-    const color = value > median * 1.2 ? "#e0574f" : value > median * 0.7 ? "#d59b39" : "#2e9c81";
+    const color = value > threshold ? "#f56e6c" : "#2ecc9b";
     const marker = L.circleMarker(point, {
-      radius: 8, color: "#f8fafc", weight: 2, fillColor: color, fillOpacity: 0.95,
-    }).addTo(stationMap);
-    marker.bindPopup(`<strong>${escapeHtml(station.station_name)}</strong><br>${escapeHtml(station.corridor)} · ${escapeHtml(station.station_id)}<br>Última demanda: ${formatNumber(station.latest_demand, 0)}`);
+      radius: value > threshold ? 9 : 7,
+      color: "#f8fafc",
+      weight: 2,
+      fillColor: color,
+      fillOpacity: 0.92,
+    }).addTo(markerLayer);
+    marker.bindPopup(`
+      <div style="min-width:180px;">
+        <strong>${escapeHtml(station.station_name)}</strong><br>
+        <span>${escapeHtml(station.corridor)} · ${escapeHtml(station.station_id)}</span><br>
+        <span>Demanda: ${formatNumber(station.latest_demand, 0)} pax / 15 min</span>
+      </div>
+    `);
     marker.on("click", () => selectStation(station.station_id));
     markers.set(station.station_id, marker);
     points.push(point);
   });
-  if (points.length) stationMap.fitBounds(L.latLngBounds(points), { padding: [24, 24], maxZoom: 13 });
+
+  if (points.length) {
+    stationMap.fitBounds(L.latLngBounds(points), { padding: [24, 24], maxZoom: 13 });
+  }
+
+  if (selectedStationId && markers.has(selectedStationId)) {
+    markers.get(selectedStationId).openPopup();
+  }
 }
 
 function selectStation(stationId) {

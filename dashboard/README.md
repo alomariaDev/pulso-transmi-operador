@@ -5,10 +5,12 @@ visualización del proyecto: mapa y serie temporal por estación, distribución 
 errores, accuracy oficial acumulada y de 24 horas, drift PSI, última ejecución,
 modelo de la última submission y puesto en el leaderboard.
 
-El navegador solo descarga `data/summary_data.json`, un agregado público. Nunca
-recibe `PULSO_API_KEY`, la conexión a Supabase ni otras credenciales. La UI
-muestra antigüedad del corte y cobertura; una submission sin etiquetas no se
-presenta como un resultado evaluado.
+El navegador solo descarga un agregado público. En modo local la UI usa
+`data.js` para evitar restricciones de CORS al abrir `file:///.../index.html`; en
+Vercel y en servidor local usa `data/summary_data.json`. Nunca recibe
+`PULSO_API_KEY`, la conexión a Supabase ni otras credenciales. La UI muestra
+antigüedad del corte y cobertura; una submission sin etiquetas no se presenta
+como un resultado evaluado.
 
 ## Datos y ejecución local
 
@@ -22,10 +24,13 @@ python dashboard/build_data.py
 python -m http.server 8000 --directory dashboard
 ```
 
-Abre `http://localhost:8000`. El generador consulta el API de Pulso TransMi y
-el leaderboard oficial, evalúa predicciones y versiones en Supabase y lee el
-último estado de GitHub Actions. No fabrica predicciones para completar las
-gráficas.
+También puedes abrirlo directamente con doble clic sobre `dashboard/index.html`
+grácias a `data.js`, aunque la ruta recomendada para revisión real es
+`http://localhost:8000`.
+
+El generador consulta el API de Pulso TransMi y el leaderboard oficial, evalúa
+predicciones y versiones en Supabase y lee el último estado de GitHub Actions.
+No fabrica predicciones para completar las gráficas.
 
 ## Actualización automática
 
