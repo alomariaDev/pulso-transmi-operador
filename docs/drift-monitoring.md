@@ -61,6 +61,14 @@ el leaderboard. Se vigilan el accuracy oficial, la cobertura, cada horizonte y
 los seis ciclos más recientes; la falta de etiquetas se reporta como pendiente,
 no como accuracy cero. Ninguna submission ya aceptada se reescribe.
 
+En una validación temporal adicional con ocho cortes entre el 16 y el 17 de
+septiembre (96 predicciones por horizonte), HistGradientBoosting obtuvo 81,62%
+de accuracy en 45 minutos y 79,55% en 60 minutos. En esos mismos cortes,
+ExtraTrees directo obtuvo 80,47% y 77,79%, y RandomForest 77,63% y 75,79%.
+Se conserva HistGradientBoosting para ambos horizontes: cambiarlo no mostró una
+mejora consistente. Estos resultados locales no equivalen al score del
+leaderboard ni se deben sumar al acumulado oficial.
+
 La fase inicial seleccionó ExtraTrees frente a un baseline con una partición
 temporal de siete días; esa evidencia está en [`model-comparison.md`](model-comparison.md).
 Es una referencia inicial, no prueba de mejora durante drift. La evaluación

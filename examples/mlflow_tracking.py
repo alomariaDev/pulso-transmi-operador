@@ -66,7 +66,7 @@ def log_training_run(
     ) as run:
         mlflow.set_tags(
             {
-                "model_family": "extra_trees_regressor_v1",
+                "model_family": str(package.get("model_version", "extra_trees_regressor_v1")),
                 "model_version": str(package.get("model_version", "extra_trees_regressor_v1")),
                 "model_algorithm": str(package.get("algorithm", "ExtraTreesRegressor")),
                 "training_trigger": trigger,

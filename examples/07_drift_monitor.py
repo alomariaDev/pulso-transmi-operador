@@ -15,7 +15,6 @@ from pulso_transmi import PulsoTransmiClient
 DATA_DIR = Path("data")
 REPORT_PATH = Path("artifacts/drift_report.json")
 DRIFT_THRESHOLD = 0.20
-MODEL_FAMILY_ID = "extra_trees_regressor_v1"
 HORIZONS = (15, 30, 45, 60)
 ACCURACY_REPORT_PATH = Path("artifacts/accuracy_report.json")
 
@@ -197,13 +196,12 @@ def evaluate_accuracy(database_url: str) -> dict[str, object]:
                 join pulso.predictions p on p.run_id = r.run_id
                 left join pulso.prediction_evaluation e
                     on e.prediction_id = p.prediction_id
-                where (r.model_id = %s or r.model_id like %s)
+                where r.run_id like 'extra-trees-%'
                   and r.status = 'succeeded'
                 group by r.run_id, r.model_id, r.finished_at,
                          r.metrics->>'expected_predictions', p.station_id, p.horizon
                 order by r.finished_at desc nulls last, r.run_id, p.horizon
-                """,
-                (MODEL_FAMILY_ID, f"{MODEL_FAMILY_ID}:%"),
+                """
             )
             rows = cursor.fetchall()
 
@@ -411,7 +409,7 @@ def evaluate_accuracy(database_url: str) -> dict[str, object]:
 
     return {
         "computed_at": datetime.now(timezone.utc).isoformat(),
-        "model_family": MODEL_FAMILY_ID,
+        "model_family": "all_persisted_competition_versions",
         "formula": "accuracy = 100 * max(0, 1 - WAPE)",
         "horizons_minutes": list(HORIZONS),
         "cycle_window": "six_most_recent_persisted_submission_cycles",

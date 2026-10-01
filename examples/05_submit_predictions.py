@@ -19,8 +19,8 @@ from model_features import build_features
 BASE_URL = os.getenv("PULSO_API_URL", "https://pulso-transmi.72-60-245-2.sslip.io").rstrip("/")
 DATA_DIR = Path("data")
 MODEL_PATH = Path("artifacts/extra_trees_demand.joblib")
-MODEL_FAMILY_ID = "extra_trees_regressor_v1"
-FEATURE_VERSION = "lag_features_v1"
+MODEL_FAMILY_ID = "extra_trees_hybrid_direct_h45_h60_v1"
+FEATURE_VERSION = "lag_features_direct_h45_h60_v1"
 
 
 def load_env_file() -> None:
@@ -126,7 +126,9 @@ def persist_submission(
     run_id = f"extra-trees-{cycle_id}"
     cutoff_id = cycle_id
     artifact_sha256 = hashlib.sha256(MODEL_PATH.read_bytes()).hexdigest()
-    model_id = f"{MODEL_FAMILY_ID}:{artifact_sha256[:16]}"
+    model_family = str(package.get("model_version", MODEL_FAMILY_ID))
+    feature_version = str(package.get("feature_version", FEATURE_VERSION))
+    model_id = f"{model_family}:{artifact_sha256[:16]}"
     cutoff_at = pd.Timestamp(str(cycle["data_cutoff"])).to_pydatetime()
     train_start = pd.Timestamp(str(package["data_start"])).to_pydatetime()
     training_data_end = pd.Timestamp(str(package["data_end"])).to_pydatetime()
@@ -141,7 +143,8 @@ def persist_submission(
         "persisted_predictions": len(predictions),
         "data_cutoff": str(cycle["data_cutoff"]),
         "artifact_sha256": artifact_sha256,
-        "model_family": MODEL_FAMILY_ID,
+        "model_family": model_family,
+        "feature_version": feature_version,
     }
     hyperparameters = json.dumps(package.get("parameters", {}), default=str)
     metrics = json.dumps(run_metrics, ensure_ascii=False, default=str)
