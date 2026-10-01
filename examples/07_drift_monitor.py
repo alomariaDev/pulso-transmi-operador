@@ -40,7 +40,11 @@ def load_data(api_url: str, api_key: str) -> tuple[pd.DataFrame, pd.DataFrame]:
         for filename in ("observations.csv", "context.csv"):
             client.download(filename, DATA_DIR / filename)
         stream = client.stream_observations_dataframe()
-    observations = pd.read_csv(DATA_DIR / "observations.csv", parse_dates=["observed_at"])
+    observations = pd.read_csv(
+        DATA_DIR / "observations.csv",
+        dtype={"station_id": "string"},
+        parse_dates=["observed_at"],
+    )
     observations = pd.concat([observations, stream], ignore_index=True)
     observations["observed_at"] = pd.to_datetime(observations["observed_at"], utc=True)
     observations["station_id"] = observations["station_id"].astype("string")
