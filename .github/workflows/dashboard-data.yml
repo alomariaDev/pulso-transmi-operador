@@ -12,11 +12,16 @@ concurrency:
 permissions:
   actions: read
   contents: write
+  pages: write
+  id-token: write
 
 jobs:
   refresh:
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
     env:
       PULSO_API_KEY: ${{ secrets.PULSO_API_KEY }}
       SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
@@ -50,3 +55,12 @@ jobs:
           fi
           git commit -m "chore(dashboard): refresh public snapshot [skip ci]"
           git push
+
+      - name: Upload dashboard site
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: dashboard
+
+      - name: Deploy dashboard
+        id: deployment
+        uses: actions/deploy-pages@v4
