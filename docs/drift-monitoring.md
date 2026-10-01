@@ -31,19 +31,23 @@ envía sus targets publicados. Cada Joblib queda versionado con SHA-256; la fila
 de Supabase relaciona ese artefacto con ciclo, cutoff, rango de datos, filas,
 parámetros y commit.
 
-Una alerta PSI igual o superior a 0,20 dispara un reentrenamiento diagnóstico en
-la Action de drift y conserva el Joblib y el log como artefactos de GitHub
-Actions. Esa salida no se promueve ni se conecta directamente al envío de
-predicciones. El pipeline de ciclo abierto entrena por separado con observaciones
-hasta su `data_cutoff`, y entrega esa versión.
+Una alerta PSI igual o superior a 0,20 dispara el reentrenamiento horario con los
+datos liberados que la API entrega al monitor. El modelo, parámetros, rango de
+datos, corte, commit, SHA-256 del Joblib y valores PSI se registran como un run
+de MLflow (`pulso-transmi-operador`), usando la base de Supabase como backend de
+tracking. El Joblib y el directorio de artefactos MLflow también se adjuntan a la
+ejecución de GitHub Actions para conservar el binario aunque el runner sea
+efímero. El flujo normal sigue entrenando con el `data_cutoff` del ciclo abierto
+y, por tanto, no usa observaciones posteriores para generar una submission.
 
-La alerta sirve para iniciar una evaluación, no demuestra que el modelo nuevo
-mejore. Se mantiene la receta ExtraTrees actual hasta que una comparación
-temporal justifique cambiar algoritmo o parámetros. Para proponer ese cambio,
-comparar ventanas y los mismos cuatro horizontes con cobertura visible, revisar
-si el error se concentra por estación/horizonte y considerar la tendencia de las
-seis últimas entregas junto al acumulado. No decidir por un único ciclo malo ni
-confundir ausencia de evaluación con accuracy cero.
+La alerta PSI detecta cambios de distribución, no demuestra por sí sola que el
+modelo nuevo mejore. El entrenamiento horario conserva la familia ExtraTrees y
+no altera retrospectivamente modelos o submissions previas. La calidad se
+vigila con los resultados oficiales por horizonte y con la evaluación que se
+persiste en Supabase. Cambios de algoritmo o parámetros requieren backtesting
+temporal, cobertura visible y mejora consistente en los cuatro horizontes;
+considera también error por estación y las seis últimas entregas. No decidir por
+un único ciclo malo ni confundir ausencia de evaluación con accuracy cero.
 
 La fase inicial seleccionó ExtraTrees frente a un baseline con una partición
 temporal de siete días; esa evidencia está en [`model-comparison.md`](model-comparison.md).
@@ -60,7 +64,9 @@ datos posteriores al cutoff para producir predicciones de ese ciclo.
   errores cuando la observación real está disponible.
 - `pulso.data_quality_checks`: PSI, accuracy por ventana/horizonte/estación y
   cobertura.
-- GitHub Actions: `drift_report.json`, `accuracy_report.json` y logs por ejecución.
+- MLflow: runs de entrenamiento y modelos asociados a corte, trigger y SHA-256.
+- GitHub Actions: `drift_report.json`, `accuracy_report.json`, Joblib y artefactos
+  MLflow por ejecución (retención de 90 días para el pipeline y 14 para drift).
 
 El umbral PSI 0,20 es una alerta de monitoreo elegida por este proyecto; no es un
 umbral impuesto por la organización del reto. Las decisiones se revisan durante

@@ -39,7 +39,11 @@ jobs:
           python examples/07_drift_monitor.py 2>&1 | tee drift.log
 
       - name: Retrain after drift
+        id: retrain
         if: steps.drift.outputs.drift_detected == 'true'
+        env:
+          TRAINING_TRIGGER: drift
+          MLFLOW_REQUIRED: "true"
         run: python examples/04_train_extra_trees.py
 
       - name: Publish drift summary
@@ -49,6 +53,7 @@ jobs:
             echo "## Drift monitor"
             echo "- Run: ${GITHUB_RUN_ID}"
             echo "- UTC: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+            echo "- Drift retrain MLflow run: ${{ steps.retrain.outputs.mlflow_run_id || 'not triggered' }}"
             echo
             echo '```json'
             cat artifacts/drift_report.json 2>/dev/null || echo '{}'
@@ -70,5 +75,6 @@ jobs:
             artifacts/accuracy_report.json
             drift.log
             artifacts/extra_trees_demand.joblib
+            artifacts/mlflow
           if-no-files-found: ignore
           retention-days: 14

@@ -34,3 +34,14 @@ jobs:
 
       - name: Check cycle, sync data, train and submit
         run: python examples/06_scheduled_pipeline.py
+
+      - name: Preserve trained model and MLflow artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: model-lineage-${{ github.run_id }}
+          path: |
+            artifacts/extra_trees_demand.joblib
+            artifacts/mlflow
+          if-no-files-found: ignore
+          retention-days: 90

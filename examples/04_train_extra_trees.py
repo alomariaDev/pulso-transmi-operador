@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
 import joblib
@@ -8,6 +9,7 @@ import pandas as pd
 from sklearn.ensemble import ExtraTreesRegressor
 
 from model_features import build_features
+from mlflow_tracking import log_training_run
 
 
 DATA_DIR = Path("data")
@@ -65,10 +67,23 @@ def main() -> None:
         "prediction_floor": 0.0,
     }
     joblib.dump(package, MODEL_PATH, compress=3)
+    try:
+        mlflow_run_id = log_training_run(
+            package=package,
+            model_path=MODEL_PATH,
+            trigger=os.getenv("TRAINING_TRIGGER", "cycle_or_manual"),
+        )
+    except Exception as error:
+        if os.getenv("MLFLOW_REQUIRED", "false").lower() == "true":
+            raise
+        print(f"Advertencia: MLflow no disponible; se conserva el Joblib local ({type(error).__name__}).")
+        mlflow_run_id = None
     print(f"Modelo guardado en: {MODEL_PATH}")
     print(f"Filas de entrenamiento: {len(featured):,}")
     print(f"Features: {len(FEATURE_COLUMNS)}")
     print(f"Tamaño: {MODEL_PATH.stat().st_size:,} bytes")
+    if mlflow_run_id:
+        print(f"MLflow run: {mlflow_run_id}")
 
 
 if __name__ == "__main__":
