@@ -1,11 +1,11 @@
 {
   "metadata": {
     "title": "Pulso TransMi — MLOps Dashboard",
-    "generated_at": "2026-10-01T16:27:42.984114+00:00",
+    "generated_at": "2026-10-01T16:38:59.428553+00:00",
     "total_stations": 12,
     "total_observations": 63108,
     "latest_observation_at": "2026-09-18T23:30:00+00:00",
-    "data_age_hours": 305.0,
+    "data_age_hours": 305.1,
     "data_stale": true,
     "data_stale_after_hours": 36,
     "date_range_start": "2026-07-26T05:00:00+00:00",
@@ -16,12 +16,12 @@
   },
   "leaderboard": {
     "cumulative": {
-      "accuracy": 71.72036640654991,
+      "accuracy": 71.72036640654994,
       "wape": 0.2753105031579911,
       "coverage": 0.9054054054054054,
       "rank": 10,
       "eligible": true,
-      "calculated_at": "2026-10-01T16:27:44.277864Z",
+      "calculated_at": "2026-10-01T16:39:00.397876Z",
       "resolved_cycles": 148
     },
     "rolling_24h": {
@@ -51,14 +51,14 @@
       {
         "rank": 3,
         "name": "Isaias Cespedes Novoa",
-        "accuracy": 78.47396676215871,
+        "accuracy": 78.4739667621587,
         "coverage": 1.0,
         "is_self": false
       },
       {
         "rank": 4,
         "name": "Kevin Andrés Nieto Callejas",
-        "accuracy": 78.10237016414874,
+        "accuracy": 78.10237016414872,
         "coverage": 1.0,
         "is_self": false
       },
@@ -86,21 +86,21 @@
       {
         "rank": 8,
         "name": "Miguel Angel Melo Rinta",
-        "accuracy": 75.92710013690548,
+        "accuracy": 75.9271001369055,
         "coverage": 1.0,
         "is_self": false
       },
       {
         "rank": 9,
         "name": "Mateo Hoyos Cárdenas",
-        "accuracy": 73.00380548026979,
+        "accuracy": 73.0038054802698,
         "coverage": 1.0,
         "is_self": false
       },
       {
         "rank": 10,
         "name": "Maria Isabell Guzman Faneyte",
-        "accuracy": 71.72036640654991,
+        "accuracy": 71.72036640654994,
         "coverage": 0.9054054054054054,
         "is_self": true
       },
@@ -114,7 +114,7 @@
       {
         "rank": 12,
         "name": "María Jimena Castaño Albarracín",
-        "accuracy": 69.88553131287385,
+        "accuracy": 69.88553131287387,
         "coverage": 1.0,
         "is_self": false
       },
@@ -128,7 +128,7 @@
       {
         "rank": 14,
         "name": "Angie Valentina Donato Pita",
-        "accuracy": 68.0043891309619,
+        "accuracy": 68.00438913096191,
         "coverage": 0.9391891891891891,
         "is_self": false
       },
@@ -8984,11 +8984,11 @@
     },
     "last_pipeline_action": {
       "name": "pulso-transmi-pipeline",
-      "status": "in_progress",
-      "created_at": "2026-10-01T16:27:10Z",
-      "updated_at": "2026-10-01T16:27:16Z",
-      "html_url": "https://github.com/alomariaDev/pulso-transmi-operador/actions/runs/36892094793",
-      "run_number": 1709,
+      "status": "success",
+      "created_at": "2026-10-01T16:37:11Z",
+      "updated_at": "2026-10-01T16:38:12Z",
+      "html_url": "https://github.com/alomariaDev/pulso-transmi-operador/actions/runs/36893349906",
+      "run_number": 1713,
       "event": "workflow_dispatch"
     },
     "supabase_status": "connected"
