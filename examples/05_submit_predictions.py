@@ -9,9 +9,12 @@ from pathlib import Path
 
 import httpx
 import joblib
-import numpy as np
 import pandas as pd
 import psycopg
+
+EXAMPLES_DIR = Path(__file__).resolve().parent
+if str(EXAMPLES_DIR) not in sys.path:
+    sys.path.insert(0, str(EXAMPLES_DIR))
 
 from model_features import build_features
 
@@ -19,8 +22,8 @@ from model_features import build_features
 BASE_URL = os.getenv("PULSO_API_URL", "https://pulso-transmi.72-60-245-2.sslip.io").rstrip("/")
 DATA_DIR = Path("data")
 MODEL_PATH = Path("artifacts/extra_trees_demand.joblib")
-MODEL_FAMILY_ID = "extra_trees_hybrid_direct_h45_h60_v1"
-FEATURE_VERSION = "lag_features_direct_h45_h60_v1"
+MODEL_FAMILY_ID = "hist_gradient_boosting_direct_h15_h30_h45_h60_v3"
+FEATURE_VERSION = "causal_lag_features_direct_all_horizons_v2"
 
 
 def load_env_file() -> None:
@@ -43,40 +46,21 @@ def predict_targets(
     working_context = context.copy()
     known_features = build_features(working_observations, working_context)
     values_by_key: dict[tuple[str, str], float] = {}
-
-    target_times = sorted({target["target_at"] for target in targets})
-    for target_at_text in target_times:
-        target_at = pd.Timestamp(target_at_text)
-        targets_at = [target for target in targets if target["target_at"] == target_at_text]
-        station_ids = [str(target["station_id"]) for target in targets_at]
-        target_rows = pd.DataFrame(
-            {"observed_at": [target_at] * len(station_ids), "station_id": station_ids, "demand": [np.nan] * len(station_ids)}
-        )
-        featured = build_features(
-            pd.concat([working_observations, target_rows], ignore_index=True),
-            working_context,
-        )
-        prediction_rows = featured.loc[
-            (featured["observed_at"] == target_at) & featured["station_id"].isin(station_ids)
-        ].copy()
-        prediction_rows["station_code"] = prediction_rows["station_id"].map(package["station_codes"])
-        prediction_rows = prediction_rows.set_index("station_id").loc[station_ids]
-        values = np.maximum(
-            package.get("prediction_floor", 0.0),
-            package["model"].predict(prediction_rows[package["feature_columns"]]),
-        )
-        for station_id, value in zip(station_ids, values, strict=True):
-            values_by_key[(station_id, target_at_text)] = round(float(value), 3)
-        generated = target_rows.copy()
-        generated["demand"] = values
-        working_observations = pd.concat([working_observations, generated], ignore_index=True)
-
     direct_models = package.get("direct_models", {})
+    unsupported_horizons = {
+        int(target["horizon_minutes"])
+        for target in targets
+        if int(target["horizon_minutes"]) not in direct_models
+    }
+    if unsupported_horizons:
+        raise RuntimeError(
+            "No hay modelo directo para los horizontes: "
+            + ", ".join(str(value) for value in sorted(unsupported_horizons))
+        )
+
     for target in targets:
         horizon = int(target["horizon_minutes"])
         direct_model = direct_models.get(horizon)
-        if direct_model is None:
-            continue
         station_id = str(target["station_id"])
         target_at = pd.Timestamp(str(target["target_at"]))
         origin_at = target_at - pd.Timedelta(minutes=horizon)

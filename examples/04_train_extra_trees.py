@@ -1,12 +1,17 @@
 from __future__ import annotations
 
 import os
+import sys
 from pathlib import Path
 
 import joblib
 import numpy as np
 import pandas as pd
-from sklearn.ensemble import ExtraTreesRegressor, HistGradientBoostingRegressor
+from sklearn.ensemble import HistGradientBoostingRegressor
+
+EXAMPLES_DIR = Path(__file__).resolve().parent
+if str(EXAMPLES_DIR) not in sys.path:
+    sys.path.insert(0, str(EXAMPLES_DIR))
 
 from model_features import build_features
 from mlflow_tracking import has_drift_run_for_cutoff, log_training_run
@@ -24,13 +29,45 @@ FEATURE_COLUMNS = [
     "rolling_mean_1h",
     "rolling_mean_1d",
     "rolling_std_1d",
+    "same_hour_prev_day",
+    "same_hour_prev_week",
+    "day_over_day_change",
+    "week_over_week_change",
+    "station_level_shift",
     "hour",
     "quarter_hour",
     "weekday",
     "is_weekend",
 ]
 RECENCY_HALF_LIFE_DAYS = 14.0
-DIRECT_HORIZONS_MINUTES = (45, 60)
+DIRECT_HORIZONS_MINUTES = (15, 30, 45, 60)
+
+
+def summarize_station_drift(frame: pd.DataFrame, threshold: float = 0.15) -> pd.DataFrame:
+    station_groups = frame.sort_values(["station_id", "observed_at"]).groupby("station_id", sort=False)
+    recent_mean = station_groups["demand"].transform(
+        lambda values: values.rolling(window=96, min_periods=96).mean().iloc[-1]
+    )
+    baseline_mean = station_groups["demand"].transform(
+        lambda values: values.shift(96).rolling(window=96, min_periods=96).mean().iloc[-1]
+    )
+    summary = (
+        pd.DataFrame(
+            {
+                "station_id": frame["station_id"],
+                "recent_mean_demand": recent_mean,
+                "baseline_mean_demand": baseline_mean,
+            }
+        )
+        .drop_duplicates()
+        .reset_index(drop=True)
+    )
+    summary["drift_ratio"] = (
+        (summary["recent_mean_demand"] - summary["baseline_mean_demand"]).abs()
+        / summary["baseline_mean_demand"].abs().clip(lower=1e-6)
+    )
+    summary["drift_detected"] = summary["drift_ratio"] >= threshold
+    return summary.sort_values("drift_ratio", ascending=False).reset_index(drop=True)
 
 
 def main() -> None:
@@ -50,26 +87,18 @@ def main() -> None:
     context = pd.read_csv(DATA_DIR / "context.csv", parse_dates=["observed_at"])
     featured = build_features(observations, context)
     featured = featured.dropna(subset=[*FEATURE_COLUMNS, "demand"]).reset_index(drop=True)
+    station_drift_summary = summarize_station_drift(featured, threshold=0.15)
+    drifted_stations = station_drift_summary.loc[
+        station_drift_summary["drift_detected"], "station_id"
+    ].tolist()
     station_values = sorted(observations["station_id"].dropna().unique().tolist())
     station_codes = {station_id: code for code, station_id in enumerate(station_values)}
     featured["station_code"] = featured["station_id"].map(station_codes)
-
-    model = ExtraTreesRegressor(
-        n_estimators=250,
-        min_samples_leaf=2,
-        max_features=0.9,
-        n_jobs=-1,
-        random_state=42,
-    )
-    age_days = (
-        training_data_end - featured["observed_at"]
-    ).dt.total_seconds() / 86_400
-    sample_weight = np.exp(-np.log(2) * age_days / RECENCY_HALF_LIFE_DAYS)
-    model.fit(
-        featured[FEATURE_COLUMNS],
-        featured["demand"],
-        sample_weight=sample_weight,
-    )
+    if drifted_stations:
+        print(
+            "Estaciones con drift acumulado: "
+            + ", ".join(str(station_id) for station_id in drifted_stations[:8])
+        )
 
     direct_models: dict[int, HistGradientBoostingRegressor] = {}
     direct_model_training_rows: dict[str, int] = {}
@@ -84,7 +113,7 @@ def main() -> None:
         direct_age_days = (
             training_data_end - direct_training["observed_at"]
         ).dt.total_seconds() / 86_400
-        direct_sample_weight = np.exp(
+        direct_recency_weight = np.exp(
             -np.log(2) * direct_age_days / RECENCY_HALF_LIFE_DAYS
         )
         direct_model = HistGradientBoostingRegressor(
@@ -97,19 +126,18 @@ def main() -> None:
         direct_model.fit(
             direct_training[FEATURE_COLUMNS],
             target.loc[eligible],
-            sample_weight=direct_sample_weight,
+            sample_weight=direct_recency_weight,
         )
         direct_models[horizon] = direct_model
         direct_model_training_rows[str(horizon)] = len(direct_training)
 
     ARTIFACT_DIR.mkdir(parents=True, exist_ok=True)
     package = {
-        "model": model,
         "direct_models": direct_models,
-        "model_name": "extra_trees_hybrid_direct_45_60",
-        "model_version": "extra_trees_hybrid_direct_h45_h60_v1",
-        "algorithm": "ExtraTreesRegressor+HistGradientBoostingRegressor",
-        "feature_version": "lag_features_direct_h45_h60_v1",
+        "model_name": "horizon_specific_direct_ensemble",
+        "model_version": "hist_gradient_boosting_direct_h15_h30_h45_h60_v3",
+        "algorithm": "HistGradientBoostingRegressor",
+        "feature_version": "causal_lag_features_direct_all_horizons_v2",
         "feature_columns": FEATURE_COLUMNS,
         "station_codes": station_codes,
         "target": "demand",
@@ -118,15 +146,18 @@ def main() -> None:
         "data_start": observations["observed_at"].min().isoformat(),
         "data_end": training_data_end.isoformat(),
         "parameters": {
-            **model.get_params(),
             "sample_weight_strategy": "exponential_recency_decay",
             "sample_weight_half_life_days": RECENCY_HALF_LIFE_DAYS,
+            "station_drift_threshold": 0.15,
+            "drifted_stations": drifted_stations[:20],
+            "station_drift_summary": station_drift_summary.head(20).to_dict(orient="records"),
+            "context_features_excluded": ["rain_mm", "temperature_c", "event_intensity"],
             "direct_model_algorithm": "HistGradientBoostingRegressor",
             "direct_horizons_minutes": list(DIRECT_HORIZONS_MINUTES),
-            "direct_max_iter": 250,
-            "direct_learning_rate": 0.08,
-            "direct_max_leaf_nodes": 31,
-            "direct_l2_regularization": 1.0,
+            "direct_hist_gradient_boosting_max_iter": 250,
+            "direct_hist_gradient_boosting_learning_rate": 0.08,
+            "direct_hist_gradient_boosting_max_leaf_nodes": 31,
+            "direct_hist_gradient_boosting_l2_regularization": 1.0,
         },
         "prediction_floor": 0.0,
     }
@@ -145,7 +176,7 @@ def main() -> None:
     print(f"Modelo guardado en: {MODEL_PATH}")
     print(f"Filas de entrenamiento: {len(featured):,}")
     print(f"Features: {len(FEATURE_COLUMNS)}")
-    print("Direct horizons: 45 and 60 minutes")
+    print("Direct horizons: 15, 30, 45 and 60 minutes")
     print(f"Tamaño: {MODEL_PATH.stat().st_size:,} bytes")
     if mlflow_run_id:
         print(f"MLflow run: {mlflow_run_id}")

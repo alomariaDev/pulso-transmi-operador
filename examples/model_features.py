@@ -24,6 +24,7 @@ def build_features(observations: pd.DataFrame, context: pd.DataFrame) -> pd.Data
     grouped_demand = frame.groupby("station_id")["demand"]
     for periods, name in ((1, "lag_15m"), (4, "lag_1h"), (96, "lag_1d"), (672, "lag_7d")):
         frame[name] = grouped_demand.shift(periods)
+
     shifted = grouped_demand.shift(1)
     frame["rolling_mean_1h"] = shifted.groupby(frame["station_id"]).transform(
         lambda values: values.rolling(4, min_periods=4).mean()
@@ -34,6 +35,14 @@ def build_features(observations: pd.DataFrame, context: pd.DataFrame) -> pd.Data
     frame["rolling_std_1d"] = shifted.groupby(frame["station_id"]).transform(
         lambda values: values.rolling(96, min_periods=96).std()
     )
+
+    frame["same_hour_prev_day"] = frame["lag_1d"]
+    frame["same_hour_prev_week"] = frame["lag_7d"]
+    frame["day_over_day_change"] = frame["lag_15m"] - frame["lag_1d"]
+    frame["week_over_week_change"] = frame["lag_15m"] - frame["lag_7d"]
+    frame["station_level_shift"] = frame["lag_15m"] - frame["rolling_mean_1d"]
+    frame["rolling_std_1d"] = frame["rolling_std_1d"].fillna(0.0)
+
     frame["hour"] = frame["observed_at"].dt.hour
     frame["quarter_hour"] = frame["observed_at"].dt.minute // 15
     frame["weekday"] = frame["observed_at"].dt.dayofweek

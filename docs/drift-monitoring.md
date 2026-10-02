@@ -44,13 +44,15 @@ flujo normal sigue entrenando con el `data_cutoff` del ciclo abierto y, por
 tanto, no usa observaciones posteriores para generar una submission.
 
 La alerta PSI detecta cambios de distribución, no demuestra por sí sola que el
-modelo nuevo mejore. Los modelos se ponderan con decaimiento exponencial y vida
-media de 14 días, para dar mayor peso a patrones recientes sin desechar el
-historial. ExtraTrees mantiene la predicción recursiva para 15 y 30 minutos.
-Para 45 y 60 minutos se entrenan modelos HistGradientBoosting separados que
-predicen directamente desde las features conocidas al cutoff; las etiquetas de
-entrenamiento solo se usan cuando su timestamp también es anterior o igual al
-cutoff. Esto evita propagar el error de una predicción a la siguiente.
+modelo nuevo mejore. El pipeline pondera muestras con decaimiento exponencial y
+vida media de 14 días, para dar mayor peso a patrones recientes sin desechar el
+historial. Cada horizonte se predice directamente desde las features conocidas
+al cutoff, evitando propagar error entre targets. El benchmark identificó
+HistGradientBoosting para 15 y 45 minutos y ExtraTrees para 30 y 60; producción
+usa HistGradientBoosting en los cuatro horizontes para mantener el artefacto
+compacto, con una diferencia inferior a 0,15 puntos respecto a ExtraTrees en
+los horizontes donde gana. Clima y eventos se excluyen del entrenamiento hasta
+que su cobertura esté disponible para todos los targets.
 
 En cuatro cortes temporales recientes (18 de septiembre, 17:00, 19:00, 21:00 y
 22:00 UTC; 192 predicciones), el backtest obtuvo 62,73% con ExtraTrees recursivo
@@ -61,13 +63,11 @@ el leaderboard. Se vigilan el accuracy oficial, la cobertura, cada horizonte y
 los seis ciclos más recientes; la falta de etiquetas se reporta como pendiente,
 no como accuracy cero. Ninguna submission ya aceptada se reescribe.
 
-En una validación temporal adicional con ocho cortes entre el 16 y el 17 de
-septiembre (96 predicciones por horizonte), HistGradientBoosting obtuvo 81,62%
-de accuracy en 45 minutos y 79,55% en 60 minutos. En esos mismos cortes,
-ExtraTrees directo obtuvo 80,47% y 77,79%, y RandomForest 77,63% y 75,79%.
-Se conserva HistGradientBoosting para ambos horizontes: cambiarlo no mostró una
-mejora consistente. Estos resultados locales no equivalen al score del
-leaderboard ni se deben sumar al acumulado oficial.
+Una evaluación anterior con ocho cortes entre el 16 y el 17 de septiembre
+encontró buenos resultados de HistGradientBoosting en horizontes largos. Esa
+prueba no sustituye el benchmark actual de tres ventanas y no equivale al score
+del leaderboard ni se debe sumar al acumulado oficial. La selección de modelos
+vigente está documentada en [`model-comparison.md`](model-comparison.md).
 
 La fase inicial seleccionó ExtraTrees frente a un baseline con una partición
 temporal de siete días; esa evidencia está en [`model-comparison.md`](model-comparison.md).
