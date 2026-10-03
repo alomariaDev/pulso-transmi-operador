@@ -9,6 +9,7 @@ from sklearn.ensemble import ExtraTreesRegressor, HistGradientBoostingRegressor,
 from sklearn.metrics import mean_absolute_error
 
 from model_features import build_features
+from model_config import HORIZON_MODEL_CONFIG
 
 
 DATA_DIR = Path("data")
@@ -54,33 +55,54 @@ def evaluate_horizon(frame: pd.DataFrame, horizon_minutes: int) -> pd.DataFrame:
         x_train, y_train = train[FEATURE_COLUMNS], train[f"target_{horizon_minutes}m"]
         x_validation, y_validation = validation[FEATURE_COLUMNS], validation[f"target_{horizon_minutes}m"]
         age_days = (train["observed_at"].max() - train["observed_at"]).dt.total_seconds() / 86_400
-        sample_weight = np.exp(-np.log(2) * age_days / 14.0)
-        models = {
-            "hist_gradient_boosting": HistGradientBoostingRegressor(
+        hgb_config = HORIZON_MODEL_CONFIG[horizon_minutes]
+        model_configs = {
+            "hist_gradient_boosting_selected": (
+                hgb_config["loss"], hgb_config["half_life_days"]
+            ),
+            "hist_gradient_boosting_squared": (
+                "squared_error", hgb_config["half_life_days"]
+            ),
+            "hist_gradient_boosting_absolute": (
+                "absolute_error", hgb_config["half_life_days"]
+            ),
+            "hist_gradient_boosting_poisson": (
+                "poisson", hgb_config["half_life_days"]
+            ),
+        }
+        fitted_models = {
+            name: HistGradientBoostingRegressor(
+                loss=loss,
                 max_iter=250,
                 learning_rate=0.08,
                 max_leaf_nodes=31,
                 l2_regularization=1.0,
                 random_state=42,
-            ),
-            "random_forest": RandomForestRegressor(
-                n_estimators=120,
-                min_samples_leaf=2,
-                max_features=0.8,
-                n_jobs=-1,
-                random_state=42,
-            ),
-            "extra_trees": ExtraTreesRegressor(
-                n_estimators=120,
-                min_samples_leaf=2,
-                max_features=0.9,
-                n_jobs=-1,
-                random_state=42,
-            ),
+            )
+            for name, (loss, _) in model_configs.items()
         }
-
-        for model_name, model in models.items():
-            model.fit(x_train, y_train, sample_weight=sample_weight)
+        fitted_models.update(
+            {
+                "random_forest": RandomForestRegressor(
+                    n_estimators=120,
+                    min_samples_leaf=2,
+                    max_features=0.8,
+                    n_jobs=-1,
+                    random_state=42,
+                ),
+                "extra_trees": ExtraTreesRegressor(
+                    n_estimators=120,
+                    min_samples_leaf=2,
+                    max_features=0.9,
+                    n_jobs=-1,
+                    random_state=42,
+                ),
+            }
+        )
+        for model_name, model in fitted_models.items():
+            half_life_days = model_configs.get(model_name, (None, 14.0))[1]
+            model_sample_weight = np.exp(-np.log(2) * age_days / half_life_days)
+            model.fit(x_train, y_train, sample_weight=model_sample_weight)
             prediction = np.maximum(0.0, model.predict(x_validation))
             model_wape = wape(y_validation, prediction)
             rows.append(
@@ -89,9 +111,12 @@ def evaluate_horizon(frame: pd.DataFrame, horizon_minutes: int) -> pd.DataFrame:
                     "window_start": window_start.date().isoformat(),
                     "window_end": window_end.date().isoformat(),
                     "model": model_name,
+                    "half_life_days": half_life_days,
                     "wape": model_wape,
                     "accuracy": accuracy(model_wape),
                     "mae": mean_absolute_error(y_validation, prediction),
+                    "absolute_error_sum": float(np.abs(y_validation.to_numpy() - prediction).sum()),
+                    "actual_sum": float(y_validation.sum()),
                     "train_rows": len(train),
                     "validation_rows": len(validation),
                 }
@@ -108,6 +133,8 @@ def evaluate_horizon(frame: pd.DataFrame, horizon_minutes: int) -> pd.DataFrame:
                 "wape": baseline_wape,
                 "accuracy": accuracy(baseline_wape),
                 "mae": mean_absolute_error(y_validation, baseline_prediction),
+                "absolute_error_sum": float(np.abs(y_validation.to_numpy() - baseline_prediction).sum()),
+                "actual_sum": float(y_validation.sum()),
                 "train_rows": len(train),
                 "validation_rows": len(validation),
             }
@@ -137,13 +164,20 @@ def main() -> None:
         summary = (
             ranking.loc[ranking["horizon_minutes"] == horizon]
             .groupby("model", as_index=False)
-            .agg(mean_wape=("wape", "mean"), mean_accuracy=("accuracy", "mean"), windows=("wape", "count"))
-            .sort_values("mean_wape")
+            .agg(
+                absolute_error_sum=("absolute_error_sum", "sum"),
+                actual_sum=("actual_sum", "sum"),
+                windows=("wape", "count"),
+            )
         )
+        summary["aggregate_wape"] = summary["absolute_error_sum"] / summary["actual_sum"]
+        summary["aggregate_accuracy"] = 100.0 * (1.0 - summary["aggregate_wape"])
+        summary = summary.sort_values("aggregate_wape")
         best = summary.iloc[0]
         print(
             f"Mejor promedio para {horizon} min: {best['model']} "
-            f"({best['mean_accuracy']:.2f}% accuracy, {int(best['windows'])} ventanas)"
+            f"({best['aggregate_accuracy']:.2f}% aggregate accuracy, "
+            f"{int(best['windows'])} ventanas)"
         )
 
 

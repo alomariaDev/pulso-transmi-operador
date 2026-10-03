@@ -14,16 +14,21 @@ document.addEventListener("DOMContentLoaded", () => {
 
 async function loadDashboard() {
   try {
-    if (window.PULSO_DASHBOARD_DATA) {
-      dashboardData = window.PULSO_DASHBOARD_DATA;
-      renderDashboard();
-      return;
-    }
     const response = await fetch("data/summary_data.json", { cache: "no-store" });
     if (!response.ok) throw new Error(`No se pudo cargar el resumen (${response.status})`);
     dashboardData = await response.json();
     renderDashboard();
   } catch (error) {
+    if (window.PULSO_DASHBOARD_DATA) {
+      dashboardData = window.PULSO_DASHBOARD_DATA;
+      renderDashboard();
+      if (window.location.protocol !== "file:") {
+        const warning = document.getElementById("data-warning");
+        warning.textContent = "No se pudo actualizar el snapshot; se muestran los datos incluidos con el dashboard.";
+        warning.classList.remove("hidden");
+      }
+      return;
+    }
     const box = document.getElementById("load-error");
     box.textContent = `${error.message}. Ejecuta la actualización del dashboard para generar sus datos.`;
     box.classList.remove("hidden");

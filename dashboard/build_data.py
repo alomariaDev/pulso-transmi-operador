@@ -42,6 +42,38 @@ def get_leaderboard(api_key: str, window: str) -> dict[str, object]:
     return response.json()
 
 
+def fetch_stream_observations(api_key: str) -> pd.DataFrame:
+    rows: list[dict[str, object]] = []
+    cursor = None
+    seen_cursors: set[str] = set()
+    with httpx.Client(
+        base_url=API_URL,
+        headers={"Authorization": f"Bearer {api_key}"},
+        timeout=120,
+    ) as api:
+        while True:
+            response = api.get(
+                "/v1/stream/observations",
+                params={"limit": 5000, **({"cursor": cursor} if cursor else {})},
+            )
+            response.raise_for_status()
+            page = response.json()
+            rows.extend(page.get("data", []))
+            cursor = page.get("next_cursor")
+            if cursor is None:
+                break
+            if cursor in seen_cursors:
+                raise RuntimeError("El stream de observaciones devolvió un cursor repetido")
+            seen_cursors.add(cursor)
+
+    frame = pd.DataFrame(rows)
+    if frame.empty:
+        return pd.DataFrame(columns=["observed_at", "station_id", "demand"])
+    frame["observed_at"] = pd.to_datetime(frame["observed_at"], utc=True)
+    frame["station_id"] = frame["station_id"].astype("string")
+    return frame[["observed_at", "station_id", "demand"]]
+
+
 def fetch_observations(api_key: str) -> tuple[pd.DataFrame, pd.DataFrame, dict[str, object]]:
     with tempfile.TemporaryDirectory(prefix="pulso-dashboard-") as temporary:
         temp_dir = Path(temporary)
@@ -49,7 +81,7 @@ def fetch_observations(api_key: str) -> tuple[pd.DataFrame, pd.DataFrame, dict[s
             stations = client.stations()
             meta = client.meta()
             client.download("observations.csv", temp_dir / "observations.csv")
-            stream = client.stream_observations_dataframe()
+            stream = fetch_stream_observations(api_key)
         base = pd.read_csv(
             temp_dir / "observations.csv",
             dtype={"station_id": "string"},

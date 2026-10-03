@@ -1,39 +1,49 @@
 # Comparación temporal de modelos
-La comparación usa las observaciones locales disponibles hasta el 17 de
-septiembre de 2026 y tres ventanas temporales consecutivas de siete días
-(27 ago–3 sep, 3–10 sep y 10–17 sep). El entrenamiento de cada ventana termina
-antes de iniciar su validación. El dataset local está desactualizado frente al
-leaderboard consultado el 1 de octubre, por lo que estos resultados no estiman
-el score actual de producción.
+La comparación usa observaciones del API hasta el 20 de septiembre de 2026 y
+tres ventanas temporales consecutivas de siete días (30 ago–6 sep, 6–13 sep y
+13–20 sep). El entrenamiento de cada ventana termina antes de iniciar su
+validación. El leaderboard se consultó el 3 de octubre; estas ventanas son más
+recientes que el CSV versionado, pero todavía no cubren los ciclos posteriores
+al 20 de septiembre.
+
 ## Variables
 Los modelos usan rezagos causales, ventanas móviles, calendario y código de
-estación. Se excluyen clima y eventos porque su cobertura local termina el 8 de
-septiembre y no está disponible de forma consistente para cada target. Las
-features de demanda usan solamente observaciones anteriores al instante de
-origen; los targets se desplazan según el horizonte. El test
-`test_target_demand_does_not_change_its_features` protege contra leakage del
-valor objetivo.
+estación. Se excluyen clima y eventos porque no están disponibles de forma
+consistente hasta cada target. Las features usan solo observaciones anteriores
+al origen; el test `test_target_demand_does_not_change_its_features` protege
+contra leakage del valor objetivo.
+
 ## Resultado
-| Horizonte | Mejor modelo promedio | Accuracy promedio | Ventanas |
+Los scores agregan errores y demanda real de las tres ventanas antes de
+calcular WAPE, igual que la métrica del leaderboard.
+
+| Horizonte | Configuración HGB | Accuracy agregada | Ventana más reciente |
 |---:|---|---:|---:|
-| 15 min | HistGradientBoostingRegressor | 83,83% | 3 |
-| 30 min | ExtraTreesRegressor | 83,23% | 3 |
-| 45 min | HistGradientBoostingRegressor | 82,56% | 3 |
-| 60 min | ExtraTreesRegressor | 82,21% | 3 |
-En la ventana más reciente (10–17 sep), el accuracy varió entre 76,78% y
-79,75%. El baseline estacional de 24 horas quedó por debajo de los modelos en
-las tres ventanas. La evaluación anterior de 87% usaba una sola partición y
-features que incluían demanda del mismo timestamp; no representa desempeño
-reproducible y se retira como referencia válida.
+| 15 min | absolute error, vida media 60 días | 78,30% | 66,25% |
+| 30 min | squared error, vida media 60 días | 76,20% | 62,41% |
+| 45 min | Poisson, vida media 30 días | 74,59% | 58,96% |
+| 60 min | Poisson, vida media 60 días | 73,52% | 56,91% |
+
+El baseline estacional de 24 horas alcanzó 69,60% en la ventana 13–20 sep,
+superando los modelos en ese bloque de drift extremo; los modelos ganan al
+agregar las tres ventanas. Una mezcla fija con ese baseline no mejoró el WAPE
+agregado. La evaluación inicial de 87% usaba leakage y una sola partición, por
+lo que no es una referencia válida.
+
 ## Decisión
-El backtest identifica a HistGradientBoosting como ganador en 15 y 45 minutos y
-a ExtraTrees en 30 y 60. Para producción se eligió HistGradientBoosting directo
-en los cuatro horizontes: queda a menos de 0,15 puntos de accuracy de los
-ganadores por horizonte, y evita un artefacto ExtraTrees superior a 1 GB. Se
-usan pesos de recencia con vida media de 14 días. Esto es una mejora basada en
-backtesting, no una garantía de 90% ni de aumento inmediato en el leaderboard;
-hace falta reentrenar, enviar ciclos y esperar etiquetas reales para medir el
-impacto operativo.
+El trainer usa HistGradientBoosting directo con `loss` y vida media ajustados
+por horizonte en `examples/model_config.py`. El efecto más claro aparece a 15
+minutos; Poisson aporta una mejora pequeña pero repetible a 45 y 60 minutos.
+Esto no garantiza 90% ni mejora inmediata del leaderboard. El API no tiene
+observaciones posteriores al 20 de septiembre, así que la siguiente evaluación
+operativa depende de nuevos ciclos y etiquetas reales.
+
+Repetir el benchmark temporal y la comparación con el baseline:
+```bash
+python examples/03_model_comparison.py
+```
+
+Los resultados por ventana se guardan en `artifacts/model_comparison.csv`.
 Repetir el experimento:
 ```bash
 python examples/03_model_comparison.py

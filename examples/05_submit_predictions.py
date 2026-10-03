@@ -22,7 +22,7 @@ from model_features import build_features
 BASE_URL = os.getenv("PULSO_API_URL", "https://pulso-transmi.72-60-245-2.sslip.io").rstrip("/")
 DATA_DIR = Path("data")
 MODEL_PATH = Path("artifacts/extra_trees_demand.joblib")
-MODEL_FAMILY_ID = "hist_gradient_boosting_direct_h15_h30_h45_h60_v3"
+MODEL_FAMILY_ID = "wape_tuned_hgb_direct_h15_h30_h45_h60_v4"
 FEATURE_VERSION = "causal_lag_features_direct_all_horizons_v2"
 
 

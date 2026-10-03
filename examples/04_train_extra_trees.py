@@ -14,6 +14,7 @@ if str(EXAMPLES_DIR) not in sys.path:
     sys.path.insert(0, str(EXAMPLES_DIR))
 
 from model_features import build_features
+from model_config import HORIZON_MODEL_CONFIG
 from mlflow_tracking import has_drift_run_for_cutoff, log_training_run
 
 
@@ -39,7 +40,6 @@ FEATURE_COLUMNS = [
     "weekday",
     "is_weekend",
 ]
-RECENCY_HALF_LIFE_DAYS = 14.0
 DIRECT_HORIZONS_MINUTES = (15, 30, 45, 60)
 
 
@@ -103,6 +103,7 @@ def main() -> None:
     direct_models: dict[int, HistGradientBoostingRegressor] = {}
     direct_model_training_rows: dict[str, int] = {}
     for horizon in DIRECT_HORIZONS_MINUTES:
+        model_config = HORIZON_MODEL_CONFIG[horizon]
         steps = horizon // 15
         target = featured.groupby("station_id", sort=False)["demand"].shift(-steps)
         eligible = (
@@ -114,9 +115,10 @@ def main() -> None:
             training_data_end - direct_training["observed_at"]
         ).dt.total_seconds() / 86_400
         direct_recency_weight = np.exp(
-            -np.log(2) * direct_age_days / RECENCY_HALF_LIFE_DAYS
+            -np.log(2) * direct_age_days / model_config["half_life_days"]
         )
         direct_model = HistGradientBoostingRegressor(
+            loss=model_config["loss"],
             max_iter=250,
             learning_rate=0.08,
             max_leaf_nodes=31,
@@ -135,7 +137,7 @@ def main() -> None:
     package = {
         "direct_models": direct_models,
         "model_name": "horizon_specific_direct_ensemble",
-        "model_version": "hist_gradient_boosting_direct_h15_h30_h45_h60_v3",
+        "model_version": "wape_tuned_hgb_direct_h15_h30_h45_h60_v4",
         "algorithm": "HistGradientBoostingRegressor",
         "feature_version": "causal_lag_features_direct_all_horizons_v2",
         "feature_columns": FEATURE_COLUMNS,
@@ -147,7 +149,7 @@ def main() -> None:
         "data_end": training_data_end.isoformat(),
         "parameters": {
             "sample_weight_strategy": "exponential_recency_decay",
-            "sample_weight_half_life_days": RECENCY_HALF_LIFE_DAYS,
+            "horizon_model_config": HORIZON_MODEL_CONFIG,
             "station_drift_threshold": 0.15,
             "drifted_stations": drifted_stations[:20],
             "station_drift_summary": station_drift_summary.head(20).to_dict(orient="records"),

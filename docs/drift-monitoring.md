@@ -44,15 +44,15 @@ flujo normal sigue entrenando con el `data_cutoff` del ciclo abierto y, por
 tanto, no usa observaciones posteriores para generar una submission.
 
 La alerta PSI detecta cambios de distribución, no demuestra por sí sola que el
-modelo nuevo mejore. El pipeline pondera muestras con decaimiento exponencial y
-vida media de 14 días, para dar mayor peso a patrones recientes sin desechar el
-historial. Cada horizonte se predice directamente desde las features conocidas
-al cutoff, evitando propagar error entre targets. El benchmark identificó
-HistGradientBoosting para 15 y 45 minutos y ExtraTrees para 30 y 60; producción
-usa HistGradientBoosting en los cuatro horizontes para mantener el artefacto
-compacto, con una diferencia inferior a 0,15 puntos respecto a ExtraTrees en
-los horizontes donde gana. Clima y eventos se excluyen del entrenamiento hasta
-que su cobertura esté disponible para todos los targets.
+modelo nuevo mejore. El pipeline pondera muestras con decaimiento exponencial;
+la vida media y función de pérdida se configuran por horizonte mediante
+backtests rolling con WAPE agregado. Cada horizonte se predice directamente
+desde las features conocidas al cutoff, evitando propagar error entre targets.
+Clima y eventos se excluyen del entrenamiento hasta que su cobertura esté
+disponible para todos los targets. En la última ventana local (13–20 sep) el
+baseline estacional superó al modelo, una alerta de que el drift reciente aún
+no queda resuelto por cambiar la pérdida; los nuevos cortes etiquetados deben
+validar cualquier mejora antes de promoverla.
 
 En cuatro cortes temporales recientes (18 de septiembre, 17:00, 19:00, 21:00 y
 22:00 UTC; 192 predicciones), el backtest obtuvo 62,73% con ExtraTrees recursivo

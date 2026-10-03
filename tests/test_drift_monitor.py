@@ -26,6 +26,12 @@ train_extra_trees = importlib.util.module_from_spec(training_spec)
 assert training_spec.loader is not None
 training_spec.loader.exec_module(train_extra_trees)
 
+config_path = Path(__file__).parents[1] / "examples" / "model_config.py"
+config_spec = importlib.util.spec_from_file_location("model_config", config_path)
+model_config = importlib.util.module_from_spec(config_spec)
+assert config_spec.loader is not None
+config_spec.loader.exec_module(model_config)
+
 
 def test_psi_is_zero_for_identical_distributions() -> None:
     values = pd.Series([1, 2, 3, 4, 5])
@@ -209,3 +215,12 @@ def test_station_drift_summary_marks_drifted_stations() -> None:
     summary = train_extra_trees.summarize_station_drift(features, threshold=0.15)
     assert summary["drift_detected"].isin([True, False]).all()
     assert "station_id" in summary.columns
+
+
+def test_horizon_model_config_uses_validated_loss_and_recency_settings() -> None:
+    assert model_config.HORIZON_MODEL_CONFIG == {
+        15: {"loss": "absolute_error", "half_life_days": 60.0},
+        30: {"loss": "squared_error", "half_life_days": 60.0},
+        45: {"loss": "poisson", "half_life_days": 30.0},
+        60: {"loss": "poisson", "half_life_days": 60.0},
+    }
