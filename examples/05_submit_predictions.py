@@ -22,8 +22,8 @@ from model_features import build_features
 BASE_URL = os.getenv("PULSO_API_URL", "https://pulso-transmi.72-60-245-2.sslip.io").rstrip("/")
 DATA_DIR = Path("data")
 MODEL_PATH = Path("artifacts/extra_trees_demand.joblib")
-MODEL_FAMILY_ID = "wape_tuned_hgb_direct_h15_h30_h45_h60_v4"
-FEATURE_VERSION = "causal_lag_features_direct_all_horizons_v2"
+MODEL_FAMILY_ID = "relative_drift_hgb_direct_h15_h30_h45_h60_v5"
+FEATURE_VERSION = "causal_lag_features_relative_target_v3"
 
 
 def load_env_file() -> None:
@@ -74,10 +74,17 @@ def predict_targets(
                 f"la estación {station_id} y horizonte {horizon}."
             )
         row["station_code"] = row["station_id"].map(package["station_codes"])
-        value = max(
-            package.get("prediction_floor", 0.0),
-            float(direct_model.predict(row[package["feature_columns"]])[0]),
+        value = float(direct_model.predict(row[package["feature_columns"]])[0])
+        transform = package.get(
+            "target_transform", package.get("parameters", {}).get("target_transform", {})
         )
+        if transform.get("mode") == "relative_to_lag_15m":
+            baseline = max(
+                float(row[transform["denominator_feature"]].iloc[0]),
+                float(transform["denominator_floor"]),
+            )
+            value *= baseline
+        value = max(package.get("prediction_floor", 0.0), value)
         values_by_key[(station_id, str(target["target_at"]))] = round(value, 3)
 
     predictions = [

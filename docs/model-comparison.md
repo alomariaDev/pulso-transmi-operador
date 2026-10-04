@@ -1,10 +1,10 @@
 # Comparación temporal de modelos
-La comparación usa observaciones del API hasta el 20 de septiembre de 2026 y
-tres ventanas temporales consecutivas de siete días (30 ago–6 sep, 6–13 sep y
-13–20 sep). El entrenamiento de cada ventana termina antes de iniciar su
-validación. El leaderboard se consultó el 3 de octubre; estas ventanas son más
-recientes que el CSV versionado, pero todavía no cubren los ciclos posteriores
-al 20 de septiembre.
+El dataset versionado llega al 17 de septiembre de 2026. El snapshot público del
+4 de octubre recibió observaciones del API hasta el 21 de septiembre, pero la
+API y el collector dejan varios días sin datos etiquetados. El backtest
+reproducible usa tres ventanas de siete días hasta el 17 de septiembre: 27 ago–3
+sep, 3–10 sep y 10–17 sep. Cada modelo se entrena solo con datos anteriores a
+su ventana de validación.
 
 ## Variables
 Los modelos usan rezagos causales, ventanas móviles, calendario y código de
@@ -14,42 +14,40 @@ al origen; el test `test_target_demand_does_not_change_its_features` protege
 contra leakage del valor objetivo.
 
 ## Resultado
-Los scores agregan errores y demanda real de las tres ventanas antes de
-calcular WAPE, igual que la métrica del leaderboard.
+WAPE agrega errores absolutos y demanda real de las tres ventanas, igual que la
+métrica oficial. V5 predice `target / lag_15m` y escala el cociente por el último
+lag disponible; V4 predecía la demanda absoluta.
 
-| Horizonte | Configuración HGB | Accuracy agregada | Ventana más reciente |
-|---:|---|---:|---:|
-| 15 min | absolute error, vida media 60 días | 78,30% | 66,25% |
-| 30 min | squared error, vida media 60 días | 76,20% | 62,41% |
-| 45 min | Poisson, vida media 30 días | 74,59% | 58,96% |
-| 60 min | Poisson, vida media 60 días | 73,52% | 56,91% |
+| Horizonte | V4 absoluto | V5 relativo | Mejora WAPE→accuracy |
+|---:|---:|---:|---:|
+| 15 min | 83,93% | 85,23% | +1,30 pp |
+| 30 min | 83,17% | 84,45% | +1,28 pp |
+| 45 min | 82,45% | 83,36% | +0,91 pp |
+| 60 min | 81,98% | 82,58% | +0,60 pp |
 
-El baseline estacional de 24 horas alcanzó 69,60% en la ventana 13–20 sep,
-superando los modelos en ese bloque de drift extremo; los modelos ganan al
-agregar las tres ventanas. Una mezcla fija con ese baseline no mejoró el WAPE
-agregado. La evaluación inicial de 87% usaba leakage y una sola partición, por
-lo que no es una referencia válida.
+En la ventana 10–17 sep la mejora fue de 2,1–3,3 puntos. La PSI de demanda
+global del último snapshot fue 0,063, pero no hay cobertura suficiente para
+calcular PSI por estación ni para clima/eventos. Los últimos cortes etiquetados
+siguen limitados y el snapshot oficial del 4 de octubre marcó 66,74% acumulado,
+puesto 13, y 42,51% en 24 h, puesto 17. Estos son scores oficiales previos a
+validar v5, no resultados de esta mejora. La evaluación inicial de 87% usaba
+leakage y una sola partición, y se descarta como referencia válida.
 
 ## Decisión
-El trainer usa HistGradientBoosting directo con `loss` y vida media ajustados
-por horizonte en `examples/model_config.py`. El efecto más claro aparece a 15
-minutos; Poisson aporta una mejora pequeña pero repetible a 45 y 60 minutos.
-Esto no garantiza 90% ni mejora inmediata del leaderboard. El API no tiene
-observaciones posteriores al 20 de septiembre, así que la siguiente evaluación
-operativa depende de nuevos ciclos y etiquetas reales.
+La mejora es consistente en tres ventanas, pero aún es offline. V5 usa HGB
+directo con target relativo y las vidas medias en `examples/model_config.py`.
+No se limita el cociente porque los límites probados redujeron el WAPE a 45/60
+min. El API no da datos posteriores al 21 sep y el collector programado falló
+en las últimas ejecuciones; primero hay que recuperar ingestión y luego medir
+v5 con etiquetas nuevas. La mejora no garantiza 90% ni se debe sumar al score
+oficial hasta tener evaluación real.
 
-Repetir el benchmark temporal y la comparación con el baseline:
+Repetir el benchmark temporal y la comparación con v4:
 ```bash
 python examples/03_model_comparison.py
 ```
 
 Los resultados por ventana se guardan en `artifacts/model_comparison.csv`.
-Repetir el experimento:
-```bash
-python examples/03_model_comparison.py
-```
-El ranking por ventana se guarda en `artifacts/model_comparison.csv`, una
-carpeta ignorada por Git para no versionar datasets ni artefactos generados.
 ## Artefacto entrenado
 El paquete Joblib se genera con:
 ```bash

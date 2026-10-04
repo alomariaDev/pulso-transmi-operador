@@ -194,6 +194,66 @@ def test_direct_horizon_model_is_used_for_submission() -> None:
     assert predictions[0]["value"] == 321.0
 
 
+def test_relative_prediction_scales_by_origin_lag() -> None:
+    timestamps = pd.date_range("2026-01-01 00:00:00", periods=800, freq="15min", tz="UTC")
+    observations = pd.DataFrame(
+        {
+            "observed_at": timestamps,
+            "station_id": ["A"] * len(timestamps),
+            "demand": [100 + index % 24 for index in range(len(timestamps))],
+        }
+    )
+    context = pd.DataFrame({"observed_at": timestamps})
+
+    class FixedRatioPredictor:
+        def predict(self, features: pd.DataFrame) -> list[float]:
+            return [1.5]
+
+    predictions = submit_predictions.predict_targets(
+        observations,
+        context,
+        [
+            {
+                "station_id": "A",
+                "target_at": (timestamps[-1] + pd.Timedelta(minutes=15)).isoformat(),
+                "horizon_minutes": 15,
+            }
+        ],
+        {
+            "direct_models": {15: FixedRatioPredictor()},
+            "station_codes": {"A": 0},
+            "feature_columns": [
+                "station_code",
+                "lag_15m",
+                "lag_1h",
+                "lag_1d",
+                "lag_7d",
+                "rolling_mean_1h",
+                "rolling_mean_1d",
+                "rolling_std_1d",
+                "same_hour_prev_day",
+                "same_hour_prev_week",
+                "day_over_day_change",
+                "week_over_week_change",
+                "station_level_shift",
+                "hour",
+                "quarter_hour",
+                "weekday",
+                "is_weekend",
+            ],
+            "target_transform": {
+                "mode": "relative_to_lag_15m",
+                "denominator_feature": "lag_15m",
+                "denominator_floor": 10.0,
+            },
+            "prediction_floor": 0.0,
+        },
+    )
+    expected_baseline = observations.iloc[-2]["demand"]
+
+    assert predictions[0]["value"] == expected_baseline * 1.5
+
+
 def test_station_drift_summary_marks_drifted_stations() -> None:
     timestamps = pd.date_range("2026-01-01 00:00:00", periods=384, freq="15min", tz="UTC")
     observations = pd.DataFrame(
@@ -219,8 +279,13 @@ def test_station_drift_summary_marks_drifted_stations() -> None:
 
 def test_horizon_model_config_uses_validated_loss_and_recency_settings() -> None:
     assert model_config.HORIZON_MODEL_CONFIG == {
-        15: {"loss": "absolute_error", "half_life_days": 60.0},
+        15: {"loss": "squared_error", "half_life_days": 60.0},
         30: {"loss": "squared_error", "half_life_days": 60.0},
-        45: {"loss": "poisson", "half_life_days": 30.0},
-        60: {"loss": "poisson", "half_life_days": 60.0},
+        45: {"loss": "squared_error", "half_life_days": 30.0},
+        60: {"loss": "squared_error", "half_life_days": 60.0},
+    }
+    assert model_config.TARGET_TRANSFORM == {
+        "mode": "relative_to_lag_15m",
+        "denominator_feature": "lag_15m",
+        "denominator_floor": 10.0,
     }

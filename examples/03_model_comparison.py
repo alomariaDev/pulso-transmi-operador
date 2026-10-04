@@ -5,7 +5,7 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
-from sklearn.ensemble import ExtraTreesRegressor, HistGradientBoostingRegressor, RandomForestRegressor
+from sklearn.ensemble import HistGradientBoostingRegressor
 from sklearn.metrics import mean_absolute_error
 
 from model_features import build_features
@@ -57,17 +57,11 @@ def evaluate_horizon(frame: pd.DataFrame, horizon_minutes: int) -> pd.DataFrame:
         age_days = (train["observed_at"].max() - train["observed_at"]).dt.total_seconds() / 86_400
         hgb_config = HORIZON_MODEL_CONFIG[horizon_minutes]
         model_configs = {
-            "hist_gradient_boosting_selected": (
-                hgb_config["loss"], hgb_config["half_life_days"]
+            "hgb_relative_target": (
+                hgb_config["loss"], hgb_config["half_life_days"], "relative"
             ),
-            "hist_gradient_boosting_squared": (
-                "squared_error", hgb_config["half_life_days"]
-            ),
-            "hist_gradient_boosting_absolute": (
-                "absolute_error", hgb_config["half_life_days"]
-            ),
-            "hist_gradient_boosting_poisson": (
-                "poisson", hgb_config["half_life_days"]
+            "hgb_absolute_target": (
+                hgb_config["loss"], hgb_config["half_life_days"], "absolute"
             ),
         }
         fitted_models = {
@@ -79,31 +73,21 @@ def evaluate_horizon(frame: pd.DataFrame, horizon_minutes: int) -> pd.DataFrame:
                 l2_regularization=1.0,
                 random_state=42,
             )
-            for name, (loss, _) in model_configs.items()
+            for name, (loss, _, _) in model_configs.items()
         }
-        fitted_models.update(
-            {
-                "random_forest": RandomForestRegressor(
-                    n_estimators=120,
-                    min_samples_leaf=2,
-                    max_features=0.8,
-                    n_jobs=-1,
-                    random_state=42,
-                ),
-                "extra_trees": ExtraTreesRegressor(
-                    n_estimators=120,
-                    min_samples_leaf=2,
-                    max_features=0.9,
-                    n_jobs=-1,
-                    random_state=42,
-                ),
-            }
-        )
         for model_name, model in fitted_models.items():
-            half_life_days = model_configs.get(model_name, (None, 14.0))[1]
+            model_config = model_configs[model_name]
+            half_life_days = model_config[1]
+            target_mode = model_config[2]
             model_sample_weight = np.exp(-np.log(2) * age_days / half_life_days)
-            model.fit(x_train, y_train, sample_weight=model_sample_weight)
-            prediction = np.maximum(0.0, model.predict(x_validation))
+            fit_target = y_train
+            if target_mode == "relative":
+                fit_target = y_train / train["lag_15m"].clip(lower=10.0)
+            model.fit(x_train, fit_target, sample_weight=model_sample_weight)
+            prediction = model.predict(x_validation)
+            if target_mode == "relative":
+                prediction = prediction * validation["lag_15m"].clip(lower=10.0).to_numpy()
+            prediction = np.maximum(0.0, prediction)
             model_wape = wape(y_validation, prediction)
             rows.append(
                 {
@@ -157,7 +141,7 @@ def main() -> None:
     ARTIFACT_DIR.mkdir(parents=True, exist_ok=True)
     ranking.to_csv(ARTIFACT_DIR / "model_comparison.csv", index=False)
 
-    print("Comparación por horizonte y modelo (tres ventanas temporales de 7 días)")
+    print("Comparación de targets por horizonte (tres ventanas temporales de 7 días)")
     print(ranking.to_string(index=False, float_format=lambda value: f"{value:.4f}"))
 
     for horizon in (15, 30, 45, 60):

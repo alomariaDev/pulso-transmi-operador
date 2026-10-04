@@ -14,7 +14,7 @@ if str(EXAMPLES_DIR) not in sys.path:
     sys.path.insert(0, str(EXAMPLES_DIR))
 
 from model_features import build_features
-from model_config import HORIZON_MODEL_CONFIG
+from model_config import HORIZON_MODEL_CONFIG, TARGET_TRANSFORM
 from mlflow_tracking import has_drift_run_for_cutoff, log_training_run
 
 
@@ -117,6 +117,11 @@ def main() -> None:
         direct_recency_weight = np.exp(
             -np.log(2) * direct_age_days / model_config["half_life_days"]
         )
+        direct_target = target.loc[eligible]
+        if TARGET_TRANSFORM["mode"] == "relative_to_lag_15m":
+            direct_target = direct_target / direct_training["lag_15m"].clip(
+                lower=TARGET_TRANSFORM["denominator_floor"]
+            )
         direct_model = HistGradientBoostingRegressor(
             loss=model_config["loss"],
             max_iter=250,
@@ -127,7 +132,7 @@ def main() -> None:
         )
         direct_model.fit(
             direct_training[FEATURE_COLUMNS],
-            target.loc[eligible],
+            direct_target,
             sample_weight=direct_recency_weight,
         )
         direct_models[horizon] = direct_model
@@ -137,10 +142,11 @@ def main() -> None:
     package = {
         "direct_models": direct_models,
         "model_name": "horizon_specific_direct_ensemble",
-        "model_version": "wape_tuned_hgb_direct_h15_h30_h45_h60_v4",
+        "model_version": "relative_drift_hgb_direct_h15_h30_h45_h60_v5",
         "algorithm": "HistGradientBoostingRegressor",
-        "feature_version": "causal_lag_features_direct_all_horizons_v2",
+        "feature_version": "causal_lag_features_relative_target_v3",
         "feature_columns": FEATURE_COLUMNS,
+        "target_transform": TARGET_TRANSFORM,
         "station_codes": station_codes,
         "target": "demand",
         "training_rows": len(featured),
@@ -150,6 +156,7 @@ def main() -> None:
         "parameters": {
             "sample_weight_strategy": "exponential_recency_decay",
             "horizon_model_config": HORIZON_MODEL_CONFIG,
+            "target_transform": TARGET_TRANSFORM,
             "station_drift_threshold": 0.15,
             "drifted_stations": drifted_stations[:20],
             "station_drift_summary": station_drift_summary.head(20).to_dict(orient="records"),
