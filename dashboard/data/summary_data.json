@@ -1,11 +1,11 @@
 {
   "metadata": {
     "title": "Pulso TransMi — MLOps Dashboard",
-    "generated_at": "2026-10-08T08:58:30.486909+00:00",
+    "generated_at": "2026-10-08T16:29:07.466956+00:00",
     "total_stations": 12,
     "total_observations": 66300,
     "latest_observation_at": "2026-09-21T18:00:00+00:00",
-    "data_age_hours": 399.0,
+    "data_age_hours": 406.5,
     "data_stale": true,
     "data_stale_after_hours": 36,
     "date_range_start": "2026-07-26T05:00:00+00:00",
@@ -16,12 +16,12 @@
   },
   "leaderboard": {
     "cumulative": {
-      "accuracy": 64.38067462334286,
+      "accuracy": 64.38067462334284,
       "wape": 0.33280406255813527,
       "coverage": 0.9348837209302325,
       "rank": 13,
       "eligible": true,
-      "calculated_at": "2026-10-08T08:58:31.220498Z",
+      "calculated_at": "2026-10-08T16:29:08.623722Z",
       "resolved_cycles": 215
     },
     "rolling_24h": {
@@ -51,14 +51,14 @@
       {
         "rank": 3,
         "name": "Daniela González Ortiz",
-        "accuracy": 79.86489602247424,
+        "accuracy": 79.86489602247423,
         "coverage": 0.9906976744186047,
         "is_self": false
       },
       {
         "rank": 4,
         "name": "Mateo Hoyos Cárdenas",
-        "accuracy": 77.95236558030102,
+        "accuracy": 77.95236558030099,
         "coverage": 1.0,
         "is_self": false
       },
@@ -72,14 +72,14 @@
       {
         "rank": 6,
         "name": "Lis Alejandra Sánchez Moreno",
-        "accuracy": 75.18620585752102,
+        "accuracy": 75.186205857521,
         "coverage": 0.9627906976744186,
         "is_self": false
       },
       {
         "rank": 7,
         "name": "Rafael José Orozco Luquez",
-        "accuracy": 73.77801699671743,
+        "accuracy": 73.77801699671741,
         "coverage": 1.0,
         "is_self": false
       },
@@ -100,42 +100,42 @@
       {
         "rank": 10,
         "name": "Natalia Rios Moreno",
-        "accuracy": 69.86508995189995,
+        "accuracy": 69.86508995189996,
         "coverage": 0.9488372093023256,
         "is_self": false
       },
       {
         "rank": 11,
         "name": "Angie Valentina Donato Pita",
-        "accuracy": 68.76247949561728,
+        "accuracy": 68.76247949561726,
         "coverage": 0.9488372093023256,
         "is_self": false
       },
       {
         "rank": 12,
         "name": "David Santiago Briñez Forero",
-        "accuracy": 68.34282890116673,
+        "accuracy": 68.34282890116675,
         "coverage": 0.9488372093023256,
         "is_self": false
       },
       {
         "rank": 13,
         "name": "Maria Isabell Guzman Faneyte",
-        "accuracy": 64.38067462334286,
+        "accuracy": 64.38067462334284,
         "coverage": 0.9348837209302325,
         "is_self": true
       },
       {
         "rank": 14,
         "name": "Miguel Angel Melo Rinta",
-        "accuracy": 64.28919570148003,
+        "accuracy": 64.28919570148007,
         "coverage": 0.9162790697674419,
         "is_self": false
       },
       {
         "rank": 15,
         "name": "Juan Esteban Molina",
-        "accuracy": 63.35671511074723,
+        "accuracy": 63.35671511074722,
         "coverage": 0.9209302325581395,
         "is_self": false
       }
@@ -9020,10 +9020,10 @@
     "last_pipeline_action": {
       "name": "pulso-transmi-pipeline",
       "status": "success",
-      "created_at": "2026-10-08T08:57:09Z",
-      "updated_at": "2026-10-08T08:58:12Z",
-      "html_url": "https://github.com/alomariaDev/pulso-transmi-operador/actions/runs/37753277750",
-      "run_number": 3663,
+      "created_at": "2026-10-08T16:27:11Z",
+      "updated_at": "2026-10-08T16:28:17Z",
+      "html_url": "https://github.com/alomariaDev/pulso-transmi-operador/actions/runs/37808886867",
+      "run_number": 3754,
       "event": "workflow_dispatch"
     },
     "supabase_status": "connected"
@@ -11181,7 +11181,7 @@
         "reference_start": "2026-09-07T18:00:00+00:00",
         "reason_unavailable": null
       },
-      "observed_at": "2026-10-08T02:13:51.938867+00:00"
+      "observed_at": "2026-10-08T09:24:25.813620+00:00"
     },
     {
       "feature": "demand_station_02300",
@@ -11199,7 +11199,7 @@
         "reference_start": "2026-09-07T18:00:00+00:00",
         "reason_unavailable": "demand coverage is below 90% in one of the 7-day windows (recent=552, reference=672)"
       },
-      "observed_at": "2026-10-08T02:13:51.938867+00:00"
+      "observed_at": "2026-10-08T09:24:25.813620+00:00"
     },
     {
       "feature": "demand_station_03000",
@@ -11217,7 +11217,7 @@
         "reference_start": "2026-09-07T18:00:00+00:00",
         "reason_unavailable": "demand coverage is below 90% in one of the 7-day windows (recent=552, reference=672)"
       },
-      "observed_at": "2026-10-08T02:13:51.938867+00:00"
+      "observed_at": "2026-10-08T09:24:25.813620+00:00"
     },
     {
       "feature": "demand_station_05000",
@@ -11235,7 +11235,7 @@
         "reference_start": "2026-09-07T18:00:00+00:00",
         "reason_unavailable": "demand coverage is below 90% in one of the 7-day windows (recent=552, reference=672)"
       },
-      "observed_at": "2026-10-08T02:13:51.938867+00:00"
+      "observed_at": "2026-10-08T09:24:25.813620+00:00"
     },
     {
       "feature": "demand_station_05100",
@@ -11253,7 +11253,7 @@
         "reference_start": "2026-09-07T18:00:00+00:00",
         "reason_unavailable": "demand coverage is below 90% in one of the 7-day windows (recent=552, reference=672)"
       },
-      "observed_at": "2026-10-08T02:13:51.938867+00:00"
+      "observed_at": "2026-10-08T09:24:25.813620+00:00"
     },
     {
       "feature": "demand_station_06000",
@@ -11271,7 +11271,7 @@
         "reference_start": "2026-09-07T18:00:00+00:00",
         "reason_unavailable": "demand coverage is below 90% in one of the 7-day windows (recent=552, reference=672)"
       },
-      "observed_at": "2026-10-08T02:13:51.938867+00:00"
+      "observed_at": "2026-10-08T09:24:25.813620+00:00"
     },
     {
       "feature": "demand_station_06111",
@@ -11289,7 +11289,7 @@
         "reference_start": "2026-09-07T18:00:00+00:00",
         "reason_unavailable": "demand coverage is below 90% in one of the 7-day windows (recent=552, reference=672)"
       },
-      "observed_at": "2026-10-08T02:13:51.938867+00:00"
+      "observed_at": "2026-10-08T09:24:25.813620+00:00"
     },
     {
       "feature": "demand_station_07105",
@@ -11307,7 +11307,7 @@
         "reference_start": "2026-09-07T18:00:00+00:00",
         "reason_unavailable": "demand coverage is below 90% in one of the 7-day windows (recent=552, reference=672)"
       },
-      "observed_at": "2026-10-08T02:13:51.938867+00:00"
+      "observed_at": "2026-10-08T09:24:25.813620+00:00"
     },
     {
       "feature": "demand_station_07107",
@@ -11325,7 +11325,7 @@
         "reference_start": "2026-09-07T18:00:00+00:00",
         "reason_unavailable": "demand coverage is below 90% in one of the 7-day windows (recent=552, reference=672)"
       },
-      "observed_at": "2026-10-08T02:13:51.938867+00:00"
+      "observed_at": "2026-10-08T09:24:25.813620+00:00"
     },
     {
       "feature": "demand_station_07111",
@@ -11343,7 +11343,7 @@
         "reference_start": "2026-09-07T18:00:00+00:00",
         "reason_unavailable": "demand coverage is below 90% in one of the 7-day windows (recent=552, reference=672)"
       },
-      "observed_at": "2026-10-08T02:13:51.938867+00:00"
+      "observed_at": "2026-10-08T09:24:25.813620+00:00"
     },
     {
       "feature": "demand_station_09000",
@@ -11361,7 +11361,7 @@
         "reference_start": "2026-09-07T18:00:00+00:00",
         "reason_unavailable": "demand coverage is below 90% in one of the 7-day windows (recent=552, reference=672)"
       },
-      "observed_at": "2026-10-08T02:13:51.938867+00:00"
+      "observed_at": "2026-10-08T09:24:25.813620+00:00"
     },
     {
       "feature": "demand_station_09122",
@@ -11379,7 +11379,7 @@
         "reference_start": "2026-09-07T18:00:00+00:00",
         "reason_unavailable": "demand coverage is below 90% in one of the 7-day windows (recent=552, reference=672)"
       },
-      "observed_at": "2026-10-08T02:13:51.938867+00:00"
+      "observed_at": "2026-10-08T09:24:25.813620+00:00"
     },
     {
       "feature": "demand_station_10009",
@@ -11397,7 +11397,7 @@
         "reference_start": "2026-09-07T18:00:00+00:00",
         "reason_unavailable": "demand coverage is below 90% in one of the 7-day windows (recent=552, reference=672)"
       },
-      "observed_at": "2026-10-08T02:13:51.938867+00:00"
+      "observed_at": "2026-10-08T09:24:25.813620+00:00"
     },
     {
       "feature": "demand_station_2300",
@@ -11613,7 +11613,7 @@
         "reference_start": "2026-09-07T18:00:00+00:00",
         "reason_unavailable": "context coverage is below 90% in one of the 7-day windows (recent=0, reference=139)"
       },
-      "observed_at": "2026-10-08T02:13:51.938867+00:00"
+      "observed_at": "2026-10-08T09:24:25.813620+00:00"
     },
     {
       "feature": "rain_mm",
@@ -11631,7 +11631,7 @@
         "reference_start": "2026-09-07T18:00:00+00:00",
         "reason_unavailable": "context coverage is below 90% in one of the 7-day windows (recent=0, reference=139)"
       },
-      "observed_at": "2026-10-08T02:13:51.938867+00:00"
+      "observed_at": "2026-10-08T09:24:25.813620+00:00"
     },
     {
       "feature": "temperature_c",
@@ -11649,7 +11649,7 @@
         "reference_start": "2026-09-07T18:00:00+00:00",
         "reason_unavailable": "context coverage is below 90% in one of the 7-day windows (recent=0, reference=139)"
       },
-      "observed_at": "2026-10-08T02:13:51.938867+00:00"
+      "observed_at": "2026-10-08T09:24:25.813620+00:00"
     }
   ]
 }
